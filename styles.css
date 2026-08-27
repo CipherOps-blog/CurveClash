@@ -2969,12 +2969,15 @@ input[type="range"]::-moz-range-thumb {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 10px 22px;
-  padding-top: 20px;
+  gap: 4px;
+  padding-top: 10px;
+  padding-bottom: 0;
+  margin-bottom: 0;
   color: var(--ink-faint);
   font-size: 0.67rem;
   font-weight: 650;
 }
+
 
 .config-disclaimer {
   text-align: center;
