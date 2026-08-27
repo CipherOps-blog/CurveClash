@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#faf8f5" />
+    <meta
+      name="description"
+      content="Curve Clash — a pastel turn-based mathematics arena where every shot is an f(x) function."
+    />
+    <title>Curve Clash</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <!-- Installed as an app (Android "Add to Home screen" / a wrapped APK),
+         this is what actually locks the display to landscape; see manifest.json. -->
+    <link rel="manifest" href="manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Curve Clash" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
+      integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+"
+      crossorigin="anonymous"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- Pure-CSS, shown by a media query rather than app.js, so it appears
+         even before the game's scripts finish loading and covers every
+         screen (config, arena, dialogs) underneath it. -->
+    <div id="rotate-overlay" class="rotate-overlay" role="alert" aria-live="assertive">
+      <div class="rotate-card">
+        <svg class="rotate-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <rect x="20" y="6" width="24" height="40" rx="5" fill="none" stroke="currentColor" stroke-width="3" />
+          <circle cx="32" cy="40" r="1.6" fill="currentColor" />
+          <path
+            d="M46 20a17 17 0 1 1 -6-13"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="3"
+            stroke-linecap="round"
+          />
+          <path d="M40 4l1 8-8-2z" fill="currentColor" />
+        </svg>
+        <p class="rotate-title">Rotate your device</p>
+        <p class="rotate-copy">Curve Clash plays best in landscape — turn your phone or tablet sideways to continue.</p>
+      </div>
+    </div>
+
+    <button id="theme-toggle" class="icon-button theme-toggle" type="button" aria-label="Switch to dark mode">
+      <span class="theme-icon" aria-hidden="true">☾</span>
+    </button>
+
+    <main id="app">
+      <section id="config-screen" class="screen config-screen" aria-labelledby="game-title">
+        <div class="config-card">
+          <header class="brand-block">
+            <div class="brand-mark" aria-hidden="true">
+              <span class="orbit orbit-one"></span>
+              <span class="orbit orbit-two"></span>
+              <span class="brand-dot"></span>
+            </div>
+            <div>
+              <h1 id="game-title">Curve <span>Clash</span></h1>
+            </div>
+          </header>
+
+          <form id="config-form" class="config-form">
+            <div class="config-grid">
+              <fieldset class="config-section">
+                <legend>Players &amp; behavior</legend>
+
+                <label class="field-row" for="bot-count">
+                  <span>
+                    <strong>Bot opponents</strong>
+                    <small>One human, any number of rivals</small>
+                  </span>
+                  <span class="stepper">
+                    <button type="button" data-step="-1" aria-label="Remove one bot">−</button>
+                    <output id="bot-count-output" for="bot-count">3</output>
+                    <button type="button" data-step="1" aria-label="Add one bot">+</button>
+                    <input id="bot-count" name="botCount" type="number" min="1" value="3" />
+                  </span>
+                </label>
+
+                <div class="field-stack">
+                  <span class="field-label">Bot behavior</span>
+                  <div class="segmented two-up" role="radiogroup" aria-label="Bot behavior">
+                    <label>
+                      <input type="radio" name="peaceful" value="true" />
+                      <span>Peaceful</span>
+                    </label>
+                    <label>
+                      <input type="radio" name="peaceful" value="false" checked />
+                      <span>Competitive</span>
+                    </label>
+                  </div>
+                  <small id="behavior-help">Each bot randomly targets another survivor, human or bot.</small>
+                </div>
+
+                <label id="difficulty-field" class="field-stack" for="difficulty">
+                  <span class="range-heading">
+                    <span class="field-label">Bot accuracy</span>
+                    <output id="difficulty-output" for="difficulty">72%</output>
+                  </span>
+                  <input id="difficulty" name="difficulty" type="range" min="0" max="100" value="72" />
+                  <span class="range-labels"><small>Wild</small><small>Perfect</small></span>
+                </label>
+              </fieldset>
+
+              <fieldset class="config-section">
+                <legend>Arena</legend>
+
+                <div class="field-stack">
+                  <span class="field-label">Map size</span>
+                  <div class="segmented three-up" role="radiogroup" aria-label="Map size">
+                    <label><input type="radio" name="mapSize" value="small" /><span>Small</span></label>
+                    <label><input type="radio" name="mapSize" value="medium" checked /><span>Medium</span></label>
+                    <label><input type="radio" name="mapSize" value="large" /><span>Large</span></label>
+                  </div>
+                </div>
+
+                <div class="field-stack">
+                  <span class="field-label">Obstacle density</span>
+                  <div class="segmented three-up" role="radiogroup" aria-label="Obstacle density">
+                    <label><input type="radio" name="density" value="low" /><span>Low</span></label>
+                    <label><input type="radio" name="density" value="medium" checked /><span>Medium</span></label>
+                    <label><input type="radio" name="density" value="high" /><span>High</span></label>
+                  </div>
+                </div>
+              </fieldset>
+
+              <fieldset class="config-section wide-section">
+                <legend>Round rules</legend>
+                <div class="round-rules-grid">
+                  <div class="field-stack">
+                    <span class="field-label">Equation input</span>
+                    <div class="mode-cards" role="radiogroup" aria-label="Equation input mode">
+                      <label>
+                        <input type="radio" name="inputMode" value="live" checked />
+                        <span class="mode-card">
+                          <span class="mode-icon">⌁</span>
+                          <span><strong>Live Visualizer</strong><small>Preview your curve and potential hits</small></span>
+                        </span>
+                      </label>
+                      <label>
+                        <input type="radio" name="inputMode" value="plain" />
+                        <span class="mode-card">
+                          <span class="mode-icon">ƒ</span>
+                          <span><strong>Plain Text</strong><small>No preview — for confident plotters</small></span>
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="field-stack timer-choice">
+                    <span class="field-label">Input timer</span>
+                    <div class="segmented three-up" role="radiogroup" aria-label="Input timer">
+                      <label><input type="radio" name="timer" value="180" checked /><span>3 min</span></label>
+                      <label><input type="radio" name="timer" value="240" /><span>4 min</span></label>
+                      <label><input type="radio" name="timer" value="300" /><span>5 min</span></label>
+                    </div>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+
+            <button class="primary-button launch-button" type="submit">
+              <span>Enter the arena</span><span aria-hidden="true">→</span>
+            </button>
+          </form>
+
+          <footer class="config-footer">
+            <span class="config-disclaimer">The technical aspects of this game were built with the help of AI.</span>
+          </footer>
+        </div>
+      </section>
+
+      <section id="game-screen" class="screen game-screen is-hidden" aria-label="Curve Clash arena">
+        <header class="topbar">
+          <div class="mini-brand"><span class="mini-mark">∿</span><strong>Curve Clash</strong></div>
+          <div class="round-status">
+            <span class="status-pill"><i></i><span id="phase-label">Input phase</span></span>
+            <span class="turn-counter">Turn <strong id="turn-number">1</strong></span>
+            <span id="timer-display" class="timer-display" aria-live="polite">03:00</span>
+          </div>
+          <div class="topbar-actions">
+            <button id="stop-replay-btn" class="text-button is-hidden" type="button" title="Stop replay and return to the final ranking">Back to results</button>
+            <button id="new-game-btn" class="text-button" type="button" title="Return to configuration">New game</button>
+          </div>
+        </header>
+
+        <div class="game-shell">
+          <section class="game-stage" aria-label="Game map">
+            <div id="canvas-wrap" class="canvas-wrap">
+              <canvas id="game-canvas" width="1200" height="720" aria-label="Equation battle map"></canvas>
+              <div class="map-key" aria-hidden="true">
+                <span class="map-origin">(0,0) is you · 1 unit = 50 px</span>
+                <span class="map-powerup shield">◆ Shield</span>
+                <span class="map-powerup beam">➤ Beam</span>
+              </div>
+            </div>
+
+            <section id="equation-dock" class="equation-dock" aria-labelledby="equation-heading">
+              <div class="dock-heading">
+                <div>
+                  <p class="eyebrow" id="input-mode-label">Live visualizer</p>
+                  <h2 id="equation-heading">Choose your curve</h2>
+                </div>
+                <button id="examples-toggle" class="chip-button" type="button" aria-expanded="false" aria-controls="examples-panel">Equation ideas <span>⌄</span></button>
+              </div>
+              <div id="examples-panel" class="examples-panel is-hidden">
+                <button type="button" data-equation="0.5 * x">Straight line</button>
+                <button type="button" data-equation="0.1 * x^2 - 2">Parabola</button>
+                <button type="button" data-equation="2 * sin(x / 1.5)">Sine wave</button>
+                <button type="button" data-equation="0.01 * x^3 - 0.6 * x">Cubic</button>
+                <button type="button" data-equation="2 * ln(x + 1)">Logarithm</button>
+                <button type="button" data-equation="exp(x / 3) - 1">Exponential</button>
+              </div>
+              <form id="equation-form" novalidate>
+                <div class="equation-entry">
+                  <label class="prompt-symbol" for="equation-input">f(x)</label>
+                  <span class="equation-equals" aria-hidden="true">=</span>
+                  <input
+                    id="equation-input"
+                    name="equation"
+                    type="text"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="0.5 * x"
+                    aria-required="true"
+                    aria-invalid="false"
+                    aria-describedby="equation-help equation-error"
+                  />
+                  <button id="validate-btn" class="primary-button validate-button" type="submit">Validate shot</button>
+                </div>
+                <div class="input-feedback">
+                  <div id="latex-preview" class="latex-preview" aria-live="polite">
+                    <span class="preview-placeholder">Your equation will appear here</span>
+                  </div>
+                  <p id="equation-help">Type only the expression after f(x) =, in units of 50 px. It must reach y = 0; ln() and exp() are available, min(), max() and abs() are not.</p>
+                  <p id="equation-error" class="equation-error" role="alert"></p>
+                </div>
+              </form>
+            </section>
+          </section>
+
+          <aside class="game-sidebar">
+            <section class="hud-card roster-card" id="roster-section">
+              <div class="card-heading">
+                <button
+                  class="card-collapse-toggle"
+                  type="button"
+                  aria-expanded="true"
+                  aria-controls="roster-body"
+                  title="Blocked straight-line distance counts twice; multi-kills earn increasing multipliers"
+                >
+                  <span class="collapse-chevron" aria-hidden="true">⌄</span>
+                  <h2>Live ranking</h2>
+                </button>
+                <span id="alive-count" class="count-badge" title="Players still alive">4</span>
+              </div>
+              <div id="roster-body" class="card-body">
+                <p class="ranking-rule">Obstacle distance ×2 · multi-kill chain ×1, ×2, ×3…</p>
+                <ol id="player-list" class="player-list"></ol>
+              </div>
+            </section>
+
+            <section class="hud-card order-card" id="order-section">
+              <div class="card-heading">
+                <button class="card-collapse-toggle" type="button" aria-expanded="true" aria-controls="order-body">
+                  <span class="collapse-chevron" aria-hidden="true">⌄</span>
+                  <h2>Fixed turn order</h2>
+                </button>
+                <span class="lock-icon" title="The order stays fixed">⌁</span>
+              </div>
+              <div id="order-body" class="card-body">
+                <ol id="turn-order" class="turn-order"></ol>
+              </div>
+            </section>
+
+            <section class="hud-card equations-card" id="equations-section">
+              <div class="card-heading">
+                <button class="card-collapse-toggle" type="button" aria-expanded="true" aria-controls="equations-body">
+                  <span class="collapse-chevron" aria-hidden="true">⌄</span>
+                  <h2>Submitted curves</h2>
+                </button>
+                <span id="submission-count">0/4</span>
+              </div>
+              <div id="equations-body" class="card-body">
+                <div id="equation-reveal" class="equation-reveal">
+                  <p class="empty-state">Equations stay secret until the input phase closes.</p>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <div id="reveal-modal" class="overlay modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="reveal-title">
+      <div class="modal-card reveal-card">
+        <p class="eyebrow">Pens down</p>
+        <h2 id="reveal-title">Curves revealed</h2>
+        <p>Every submitted equation is now locked. Trace order follows the fixed draw.</p>
+        <div id="modal-equations" class="modal-equations"></div>
+        <div class="reveal-countdown">Simulation begins in <strong id="reveal-countdown">3</strong></div>
+      </div>
+    </div>
+
+    <div id="end-overlay" class="overlay end-overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="end-title">
+      <div class="end-card">
+        <div id="end-emblem" class="end-emblem" aria-hidden="true">✦</div>
+        <p id="end-kicker" class="eyebrow">Final result</p>
+        <h2 id="end-title">Victory!</h2>
+        <p id="end-message">The highest score wins.</p>
+        <ol id="end-ranking" class="end-ranking" aria-label="Final player ranking"></ol>
+        <div id="end-stats" class="end-stats"></div>
+        <div class="end-actions">
+          <button id="view-replay-btn" class="secondary-button" type="button">View replay</button>
+          <button id="play-again-btn" class="primary-button" type="button">Play again</button>
+          <button id="same-settings-btn" class="secondary-button" type="button">Rematch</button>
+        </div>
+      </div>
+    </div>
+
+    <noscript>This game needs JavaScript enabled.</noscript>
+    <script src="https://cdn.jsdelivr.net/npm/mathjs@12.4.2/lib/browser/math.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
