@@ -2,20 +2,6 @@
 
 A static, zero-build 2D equation battle game made with HTML, CSS, Canvas, and vanilla JavaScript. Math expressions are parsed by math.js and rendered with KaTeX. There is no Node runtime, application server, API, or backend.
 
-## Run locally
-
-Deploy the folder unchanged to any static host (for example GitHub Pages, Netlify, or a basic web server). No installation, package manager, build step, or server-side code is required.
-
-For local development, the browser must receive the ES modules over HTTP rather than `file://`. Any static-file server works; Python is one optional convenience:
-
-```sh
-python3 -m http.server 8000
-```
-
-Then open <http://localhost:8000>.
-
-This command only serves files; it is not a game backend. The first load needs internet access for the pinned math.js, KaTeX, and font assets.
-
 ## Equation input
 
 - Type only the right-hand expression; the purple `f(x)` box and adjacent `=` are supplied by the interface.
