@@ -24,7 +24,7 @@ const MAP_SIZES = {
 };
 
 const PLAYER_COLORS = ["#efadc1", "#a8dcc7", "#bfb4e5", "#f2c5a7", "#a9d7e6", "#e8b5e2"];
-const BOT_NAMES = ["Ada", "Euclid", "Noether", "Gauss", "Hypatia", "Ramanujan", "Turing", "Euler"];
+const BOT_NAMES = ["Euclid", "Noether", "Gauss", "Ramanujan", "Turing", "Euler", "Pythagoras", "Archimedes", "Fibonacci", "Descartes", "Newton", "Leibniz", "Fermat", "Pascal", "Laplace", "Lagrange", "Riemann", "Cauchy", "Cantor", "Hilbert", "Poincare", "Godel", "Russell", "Boole", "Galois", "Jacobi", "Dirichlet", "Weierstrass", "Kronecker", "Klein", "Chebyshev", "Markov", "Banach", "Tarski", "VonNeumann", "Nash", "Cartan", "Bernoulli", "Taylor", "Maclaurin", "DAlembert", "Fourier", "Eratosthenes", "Thales", "Aristotle", "Plato", "Feynman", "Villani"];
 const PLAYER_HIT_RADIUS = 26;
 const PREVIEW_DEBOUNCE = 130;
 const MIN_CRATER_RADIUS = 12;
