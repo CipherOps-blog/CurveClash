@@ -114,6 +114,7 @@ class CurveClashGame {
 
     this.bindInterface();
     this.restoreTheme();
+    this.restoreConfiguration();
     this.syncConfigurationControls();
     this.resizeObserver = new ResizeObserver(() => this.fitCanvas());
     this.resizeObserver.observe(this.dom.canvasWrap);
@@ -127,7 +128,9 @@ class CurveClashGame {
   bindInterface() {
     this.dom.configForm.addEventListener("submit", (event) => {
       event.preventDefault();
-      this.startGame(this.readConfiguration());
+      const config = this.readConfiguration();
+      this.saveConfiguration(config);
+      this.startGame(config);
     });
 
     $$("[data-step]", this.dom.configForm).forEach((button) => {
@@ -325,6 +328,47 @@ class CurveClashGame {
       inputMode: checkedValue("inputMode") || "live",
       timer: [180, 240, 300].includes(Number(checkedValue("timer"))) ? Number(checkedValue("timer")) : 180
     };
+  }
+
+  /**
+   * Carry the setup choices over to the next visit. Only the settings are
+   * kept, and they are put back through the same controls the player would
+   * have used, so readConfiguration still validates everything afterwards and
+   * a stale or hand-edited entry can never produce a game the form itself
+   * could not have described.
+   */
+  saveConfiguration(config) {
+    try {
+      localStorage.setItem("curve-clash-config", JSON.stringify(config));
+    } catch {
+      // Storage can be unavailable in privacy-focused browser contexts.
+    }
+  }
+
+  restoreConfiguration() {
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem("curve-clash-config") ?? "null");
+    } catch {
+      // A malformed or unreadable entry just leaves the defaults in place.
+    }
+    if (!saved || typeof saved !== "object") return;
+
+    const check = (name, value) => {
+      const option = $(`input[name='${name}'][value='${value}']`, this.dom.configForm);
+      if (option) option.checked = true;
+    };
+    if (Number.isFinite(saved.botCount)) {
+      this.dom.botCount.value = String(Math.max(1, Math.floor(saved.botCount)));
+    }
+    if (Number.isFinite(saved.difficulty)) {
+      this.dom.difficulty.value = String(clamp(saved.difficulty, 0, 100));
+    }
+    if (typeof saved.peaceful === "boolean") check("peaceful", String(saved.peaceful));
+    check("mapSize", saved.mapSize);
+    check("density", saved.density);
+    check("inputMode", saved.inputMode);
+    check("timer", saved.timer);
   }
 
   startGame(config) {

@@ -1858,20 +1858,16 @@ input[type="range"]::-moz-range-thumb {
   width: min(680px, 100%);
 }
 
-/* Fills whatever row the card gives it and scrolls there, rather than
-   capping itself at a share of the viewport and leaving the card with a gap
-   underneath on tall screens. */
+/* Always its natural height; the wrapper above is what scrolls, and it is
+   the one carrying the padding — doubling it here only cost the list room. */
 .reveal-list {
   display: grid;
-  min-height: 0;
+  flex: 0 0 auto;
   align-content: start;
-  overflow-y: auto;
-  padding: 3px;
+  padding: 0;
   margin: 0;
   gap: 9px;
   list-style: none;
-  scrollbar-color: var(--line-strong) transparent;
-  scrollbar-width: thin;
 }
 
 .reveal-item {
@@ -3131,16 +3127,14 @@ input[type="range"]::-moz-range-thumb {
   min-height: 280px;
 }
 
+/* Sits in the dock beneath the validate button, so it explains the map from
+   beside the controls instead of covering a corner of the map itself. */
 .map-key {
-  position: absolute;
-  z-index: 9;
-  right: 12px;
-  bottom: 12px;
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
   gap: 5px;
-  max-width: calc(100% - 24px);
   pointer-events: none;
 }
 
@@ -3589,18 +3583,39 @@ body.sidebar-hidden .game-layout {
    the countdown — the one thing telling you the round is about to start —
    off the bottom as soon as there were more than a few players. */
 .modal-card.reveal-card {
-  display: grid;
+  display: flex;
   width: min(650px, 100%);
   max-height: min(780px, calc(100dvh - 48px));
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  flex-direction: column;
+  justify-content: center;
   overflow: hidden;
   place-self: center;
   gap: 8px;
   text-align: center;
 }
 
+/* A flex column rather than pinned grid rows, because the eyebrow and the
+   intro line are dropped on a short screen: with fixed rows the equation
+   list would land on the wrong one and stop absorbing the slack. Flex just
+   gives the leftover height to whichever child asks for it. */
+.modal-card.reveal-card > .eyebrow,
+.modal-card.reveal-card > h2,
+.modal-card.reveal-card > p:not(.eyebrow),
+.reveal-countdown {
+  flex: 0 0 auto;
+}
+
+/* Grows into the card and shrinks below its content when the card runs out
+   of room — the shrink is what keeps the countdown on screen with a long
+   list, and the card being content-sized (not a fixed height) is what stops
+   a short list leaving the countdown stranded at the bottom. */
+.modal-equations {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
 .modal-card.reveal-card > .eyebrow {
-  justify-self: center;
+  align-self: center;
   margin-bottom: 1px;
 }
 
@@ -3612,20 +3627,23 @@ body.sidebar-hidden .game-layout {
 
 .modal-card.reveal-card > p:not(.eyebrow) {
   max-width: 46ch;
-  justify-self: center;
+  align-self: center;
   margin: 0 0 10px;
   color: var(--ink-soft);
   font-size: 0.84rem;
 }
 
+/* The dialog's single scroll container. Nesting a second one inside fights
+   this one: the outer box sizes the inner by its collapsed min-content, so
+   the inner ends up a few pixels short of its own content and scrolls even
+   when the card had room for all of it. */
 .modal-equations {
-  display: grid;
+  display: flex;
   min-width: 0;
   min-height: 0;
-  align-content: start;
+  flex-direction: column;
   overflow-y: auto;
   padding: 3px;
-  gap: 8px;
   text-align: left;
   scrollbar-color: var(--line-strong) transparent;
   scrollbar-width: thin;
@@ -3659,7 +3677,7 @@ body.sidebar-hidden .game-layout {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  justify-self: center;
+  align-self: center;
   margin-top: 8px;
   padding: 7px 12px;
   border: 1px solid var(--line);
@@ -3989,19 +4007,44 @@ body.sidebar-hidden .game-layout {
   #config-screen,
   .config-screen {
     min-height: 100dvh;
-    padding: 8px 10px;
+    padding: 6px 10px;
     place-items: center;
   }
 
+  /* The card is a column that never outgrows the screen, and only the block
+     of option groups inside it scrolls. That keeps "Enter the arena" — and
+     the wordmark above it — on screen at any height, however short: the
+     button can never be pushed off the bottom the way it was when the whole
+     card grew and the page scrolled instead. */
   #config-screen > .config-card,
   .config-card {
+    display: flex;
     width: min(100%, 1100px);
-    max-height: calc(100dvh - 16px);
-    overflow-y: auto;
-    padding: 11px 14px;
+    max-height: calc(100dvh - 12px);
+    flex-direction: column;
+    overflow: hidden;
+    padding: 9px 12px;
+    gap: 5px;
+  }
+
+  .config-form {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
     gap: 6px;
+  }
+
+  .config-grid {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
     scrollbar-color: var(--line-strong) transparent;
     scrollbar-width: thin;
+  }
+
+  .launch-button {
+    flex: 0 0 auto;
   }
 
   .brand-block {
@@ -4036,9 +4079,9 @@ body.sidebar-hidden .game-layout {
 
   .config-section,
   .config-section.wide-section {
-    padding: 9px 10px;
+    padding: 8px 9px;
     grid-column: auto;
-    gap: 7px;
+    gap: 6px;
   }
 
   .config-section legend {
@@ -4076,6 +4119,7 @@ body.sidebar-hidden .game-layout {
   .launch-button {
     min-height: 42px;
     padding: 8px 16px;
+    font-size: 0.86rem;
   }
 
   /* A narrow-width breakpoint below turns the whole page scrollable for a
@@ -4193,14 +4237,41 @@ body.sidebar-hidden .game-layout {
     width: 100%;
   }
 
+  /* One legend entry per line in the narrow column: side by side they wrap
+     mid-sentence and the two power-up chips end up orphaned on a row of
+     their own. A divider keeps them reading as a note about the map rather
+     than as more controls under the button. */
+  .map-key {
+    align-items: stretch;
+    flex-direction: column;
+    padding-top: 7px;
+    border-top: 1px solid var(--line);
+    gap: 4px;
+  }
+
+  .map-key > * {
+    justify-content: center;
+    padding: 3px 7px;
+    font-size: 0.55rem;
+  }
+
   /* Reveal dialog ---------------------------------------------------
      The heading block costs more than the list it introduces is worth on a
      screen this short, and the topbar already says the phase — so the
      eyebrow and the explanatory line go, and the curves get that room. */
+  .overlay.modal {
+    padding: 6px;
+  }
+
+  /* Given a definite height rather than sizing to its content, so the row
+     holding the curves actually receives the leftover space. A content-sized
+     card cannot do that: the list scrolls, and a scrolling box contributes no
+     intrinsic height, so the 1fr row it sits in has nothing to grow from and
+     the list stays a few pixels short however much room the card has. */
   .modal-card.reveal-card {
-    max-height: calc(100dvh - 16px);
-    padding: 12px 14px;
-    gap: 5px;
+    max-height: calc(100dvh - 12px);
+    padding: 9px 12px;
+    gap: 4px;
   }
 
   .modal-card.reveal-card > .eyebrow,
@@ -4209,12 +4280,13 @@ body.sidebar-hidden .game-layout {
   }
 
   .modal-card.reveal-card > h2 {
-    font-size: 1.15rem;
+    margin-bottom: 2px;
+    font-size: 1rem;
   }
 
   .modal-equations,
   .reveal-list {
-    gap: 5px;
+    gap: 4px;
   }
 
   /* One line per player — name beside the curve rather than above it — which
@@ -4223,7 +4295,7 @@ body.sidebar-hidden .game-layout {
   .reveal-item {
     align-items: center;
     grid-template-columns: minmax(64px, auto) minmax(0, 1fr);
-    padding: 5px 9px;
+    padding: 4px 9px;
     gap: 9px;
     text-align: left;
   }
@@ -4247,8 +4319,9 @@ body.sidebar-hidden .game-layout {
   }
 
   .reveal-countdown {
-    min-height: 30px;
-    font-size: 0.7rem;
+    min-height: 28px;
+    margin-top: 2px;
+    font-size: 0.68rem;
   }
 
   .input-feedback {

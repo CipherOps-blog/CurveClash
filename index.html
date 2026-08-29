@@ -205,11 +205,6 @@
           <section class="game-stage" aria-label="Game map">
             <div id="canvas-wrap" class="canvas-wrap">
               <canvas id="game-canvas" width="1200" height="720" aria-label="Equation battle map"></canvas>
-              <div class="map-key" aria-hidden="true">
-                <span class="map-origin">(0,0) is you · 1 unit = 50 px</span>
-                <span class="map-powerup shield">◆ Shield</span>
-                <span class="map-powerup beam">➤ Beam</span>
-              </div>
             </div>
 
             <section id="equation-dock" class="equation-dock" aria-labelledby="equation-heading">
@@ -267,6 +262,13 @@
                 </div>
                 <button id="validate-btn" class="primary-button validate-button" type="submit">Validate shot</button>
               </form>
+              <!-- The legend reads with the controls rather than floating over
+                   the arena, where it sat on top of the playfield it explains. -->
+              <div class="map-key" aria-hidden="true">
+                <span class="map-origin">(0,0) is you · 1 unit = 50 px</span>
+                <span class="map-powerup shield">◆ Shield</span>
+                <span class="map-powerup beam">➤ Beam</span>
+              </div>
             </section>
           </section>
 
