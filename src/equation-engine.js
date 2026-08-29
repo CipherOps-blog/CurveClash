@@ -292,100 +292,28 @@ export function worldToLocal(point, origin, unitPixels = LOCAL_UNIT_PIXELS) {
   return { x: (point.x - origin.x) / unit, y: (origin.y - point.y) / unit };
 }
 
-const ZERO_RESIDUAL_TOLERANCE = 1e-13;
+// Acceptance band for |f(0)|, measured in world pixels (evaluateLocal returns a
+// pixel ordinate). A millionth of a pixel is visually exact while leaving room
+// for the rounding an expression that is mathematically zero at the origin can
+// still pick up, e.g. 2 * sin(x / 1.5) evaluated through math.js.
+const ORIGIN_ZERO_TOLERANCE = 1e-6;
 
 /**
- * Find a real zero of an f(x) function inside the inclusive playable local-x
- * interval. The scan works at roughly one world-pixel resolution, then refines
- * crossings and tangent/cusp minima. Sign flips are never accepted on their
- * own, which prevents poles such as 1 / (x - a) from masquerading as roots.
+ * Require that an f(x) function passes through y = 0 at x = 0, i.e. starts on
+ * the shooter. `minimumX`/`maximumX` are accepted so the call reads next to the
+ * playable-range bounds the sampler already computes, but they are not
+ * consulted: the only requirement is the value at the origin.
  */
-export function findPlayableFunctionZero(equation, minimumX, maximumX, options = {}) {
-  if (!equation || equation.kind === "null") return null;
-  if (equation.kind !== "cartesian" || typeof equation.evaluateLocal !== "function") {
-    throw new EquationError("Only a single f(x) function can be checked for zeros.", "FUNCTION_FORM_REQUIRED");
-  }
-
-  let left = Number(minimumX);
-  let right = Number(maximumX);
-  if (!Number.isFinite(left) || !Number.isFinite(right)) {
-    throw new TypeError("The playable x range must contain finite endpoints.");
-  }
-  if (left > right) [left, right] = [right, left];
-
-  const span = right - left;
-  const requestedStep = clamp(Number(options.zeroSampleStep ?? 1), 0.25, 4);
-  const maxSamples = Math.max(64, Math.floor(options.maxZeroSamples ?? 5000));
-  const segmentCount = Math.max(1, Math.min(maxSamples - 1, Math.ceil(span / requestedStep)));
-  const sampleXs = [];
-  for (let index = 0; index <= segmentCount; index += 1) {
-    sampleXs.push(index === segmentCount ? right : left + (span * index) / segmentCount);
-  }
-  if (left <= 0 && right >= 0 && !sampleXs.some((x) => x === 0)) sampleXs.push(0);
-  sampleXs.sort((a, b) => a - b);
-
-  const samples = [];
-  for (const x of sampleXs) {
-    if (samples.length && Math.abs(samples[samples.length - 1].x - x) <= Number.EPSILON) continue;
-    const value = safelyEvaluateAt(equation, x);
-    const sample = { x, value, absolute: Math.abs(value) };
-    samples.push(sample);
-    if (value === 0 && !isNeverZeroNode(equation.node)) {
-      return { x, value: 0, method: "exact" };
-    }
-  }
-
-  for (let index = 1; index < samples.length; index += 1) {
-    const before = samples[index - 1];
-    const after = samples[index];
-    if (!Number.isFinite(before.value) || !Number.isFinite(after.value)) continue;
-    if (!oppositeSigns(before.value, after.value)) continue;
-    const crossing = refineSignChange(equation, before, after, options);
-    if (crossing) return crossing;
-  }
-
-  // A tangent or cusp can reach zero without changing sign. Search only strict
-  // local valleys of |f|, then minimize that valley at sub-pixel precision.
-  for (let index = 1; index < samples.length - 1; index += 1) {
-    const before = samples[index - 1];
-    const center = samples[index];
-    const after = samples[index + 1];
-    if (![before, center, after].every((sample) => Number.isFinite(sample.value))) continue;
-    if (!(center.absolute < before.absolute && center.absolute < after.absolute)) continue;
-    const minimum = refineAbsoluteMinimum(equation, before, center, after, options);
-    if (minimum && minimum.absolute <= Number(options.zeroResidualTolerance ?? ZERO_RESIDUAL_TOLERANCE)) {
-      return { x: minimum.x, value: minimum.value, method: "tangent" };
-    }
-  }
-
-  // Domain-edge roots such as sqrt(x-a) can have non-finite values on one
-  // side. Refine each finite/non-finite transition without bridging across it.
-  for (let index = 1; index < samples.length; index += 1) {
-    const before = samples[index - 1];
-    const after = samples[index];
-    if (Number.isFinite(before.value) === Number.isFinite(after.value)) continue;
-    const boundary = refineFiniteDomainBoundary(equation, before, after, options);
-    // Require an actually defined zero at the domain edge. Merely approaching
-    // zero is not enough: x^2 / x has a removable hole at x=0, not a root.
-    if (boundary?.value === 0 && !isNeverZeroNode(equation.node)) {
-      return { x: boundary.x, value: boundary.value, method: "domain-boundary" };
-    }
-  }
-
-  return null;
-}
-
 export function assertPlayableFunctionZero(equation, minimumX, maximumX, options = {}) {
-  const zero = findPlayableFunctionZero(equation, minimumX, maximumX, options);
-  if (!zero) {
-    // A bare exponential is the most common rejection, so name the fix instead
-    // of repeating the generic rule.
+  const valueAtOrigin = safelyEvaluateAt(equation, 0);
+  const tolerance = Number(options.originZeroTolerance ?? ORIGIN_ZERO_TOLERANCE);
+  if (!Number.isFinite(valueAtOrigin) || Math.abs(valueAtOrigin) > tolerance) {
     const message = isNeverZeroNode(equation?.node)
-      ? "An exponential never reaches 0. Subtract its value at x = 0, for example exp(x / 3) - 1."
-      : "This function must reach 0 somewhere across the playable map (for example x^2 - 1).";
-    throw new EquationError(message, "NO_PLAYABLE_ZERO");
+      ? "This function is never 0, so it cannot pass through the origin. Shift it down by its value at x = 0, for example exp(x / 3) - 1."
+      : "This function must pass through y = 0 at x = 0, for example x^2 + 3 * x or 2 * x.";
+    throw new EquationError(message, "NO_ORIGIN_ZERO");
   }
-  return zero;
+  return { x: 0, value: 0, method: "origin" };
 }
 
 function safelyEvaluateAt(equation, x) {
@@ -397,133 +325,12 @@ function safelyEvaluateAt(equation, x) {
   }
 }
 
-function oppositeSigns(first, second) {
-  return (first < 0 && second > 0) || (first > 0 && second < 0);
-}
-
-function refineSignChange(equation, before, after, options) {
-  let low = { ...before };
-  let high = { ...after };
-  let best = low.absolute <= high.absolute ? { ...low } : { ...high };
-  const initialBest = best.absolute;
-  const iterations = Math.max(36, Math.floor(options.zeroRefinementIterations ?? 64));
-
-  for (let iteration = 0; iteration < iterations; iteration += 1) {
-    const x = low.x + (high.x - low.x) / 2;
-    const value = safelyEvaluateAt(equation, x);
-    if (!Number.isFinite(value)) return null;
-    const current = { x, value, absolute: Math.abs(value) };
-    if (current.absolute < best.absolute) best = current;
-    if (value === 0 && !isNeverZeroNode(equation.node)) {
-      return { x, value: 0, method: "crossing" };
-    }
-    if (oppositeSigns(low.value, value)) high = current;
-    else if (oppositeSigns(value, high.value)) low = current;
-    else return null;
-  }
-
-  // Genuine continuous crossings converge toward zero. At a pole or jump the
-  // residual instead stays flat or grows as the bracket narrows.
-  const residualTolerance = Number(options.zeroResidualTolerance ?? ZERO_RESIDUAL_TOLERANCE);
-  if (best.absolute <= residualTolerance || best.absolute <= initialBest * 1e-9) {
-    return { x: best.x, value: best.value, method: "crossing" };
-  }
-  return null;
-}
-
-function refineAbsoluteMinimum(equation, before, center, after, options) {
-  let left = before.x;
-  let right = after.x;
-  let best = { ...center };
-
-  // A parabolic vertex exactly recovers common squared-function roots and, in
-  // contrast, leaves a positive vertical offset measurable and rejectable.
-  const vertex = parabolicVertex(before, center, after);
-  if (Number.isFinite(vertex) && vertex > left && vertex < right) {
-    const value = safelyEvaluateAt(equation, vertex);
-    if (Number.isFinite(value) && Math.abs(value) < best.absolute) {
-      best = { x: vertex, value, absolute: Math.abs(value) };
-    }
-  }
-
-  const ratio = (Math.sqrt(5) - 1) / 2;
-  let firstX = right - ratio * (right - left);
-  let secondX = left + ratio * (right - left);
-  let firstValue = safelyEvaluateAt(equation, firstX);
-  let secondValue = safelyEvaluateAt(equation, secondX);
-  const iterations = Math.max(48, Math.floor(options.zeroMinimumIterations ?? 80));
-
-  for (let iteration = 0; iteration < iterations; iteration += 1) {
-    const firstAbsolute = Number.isFinite(firstValue) ? Math.abs(firstValue) : Infinity;
-    const secondAbsolute = Number.isFinite(secondValue) ? Math.abs(secondValue) : Infinity;
-    if (firstAbsolute < best.absolute) best = { x: firstX, value: firstValue, absolute: firstAbsolute };
-    if (secondAbsolute < best.absolute) best = { x: secondX, value: secondValue, absolute: secondAbsolute };
-    if (firstAbsolute <= secondAbsolute) {
-      right = secondX;
-      secondX = firstX;
-      secondValue = firstValue;
-      firstX = right - ratio * (right - left);
-      firstValue = safelyEvaluateAt(equation, firstX);
-    } else {
-      left = firstX;
-      firstX = secondX;
-      firstValue = secondValue;
-      secondX = left + ratio * (right - left);
-      secondValue = safelyEvaluateAt(equation, secondX);
-    }
-  }
-
-  for (const x of [left, (left + right) / 2, right]) {
-    const value = safelyEvaluateAt(equation, x);
-    if (Number.isFinite(value) && Math.abs(value) < best.absolute) {
-      best = { x, value, absolute: Math.abs(value) };
-    }
-  }
-  return best;
-}
-
-function parabolicVertex(first, second, third) {
-  const denominator = (first.x - second.x) * (first.x - third.x) * (second.x - third.x);
-  if (Math.abs(denominator) <= Number.EPSILON) return Number.NaN;
-  const coefficientA = (
-    third.x * (second.absolute - first.absolute)
-    + second.x * (first.absolute - third.absolute)
-    + first.x * (third.absolute - second.absolute)
-  ) / denominator;
-  const coefficientB = (
-    third.x ** 2 * (first.absolute - second.absolute)
-    + second.x ** 2 * (third.absolute - first.absolute)
-    + first.x ** 2 * (second.absolute - third.absolute)
-  ) / denominator;
-  return Math.abs(coefficientA) <= Number.EPSILON ? Number.NaN : -coefficientB / (2 * coefficientA);
-}
-
-function refineFiniteDomainBoundary(equation, first, second, options) {
-  let nonFinite = Number.isFinite(first.value) ? { ...second } : { ...first };
-  let finite = Number.isFinite(first.value) ? { ...first } : { ...second };
-  let best = { ...finite };
-  const iterations = Math.max(48, Math.floor(options.zeroRefinementIterations ?? 64));
-  for (let iteration = 0; iteration < iterations; iteration += 1) {
-    const x = nonFinite.x + (finite.x - nonFinite.x) / 2;
-    if (x === nonFinite.x || x === finite.x) break;
-    const value = safelyEvaluateAt(equation, x);
-    if (Number.isFinite(value)) {
-      finite = { x, value, absolute: Math.abs(value) };
-      if (finite.absolute < best.absolute) best = { ...finite };
-      if (value === 0) return best;
-    } else {
-      nonFinite = { x, value, absolute: Infinity };
-    }
-  }
-  return best;
-}
-
 /**
  * Report expressions that are mathematically never zero, such as exp(x), 10^x
- * or 2 * e^x. Far from the origin their values underflow to exactly 0 in double
- * precision, and that artefact must never be accepted as a real root. The walk
- * is deliberately conservative: anything it cannot prove non-zero returns false
- * and keeps the ordinary numeric root search in charge.
+ * or 2 * e^x. This only sharpens the rejection message for a bare exponential;
+ * the origin check itself already refuses anything with a non-zero f(0). The
+ * walk is deliberately conservative: anything it cannot prove non-zero returns
+ * false and falls back to the generic message.
  */
 function isNeverZeroNode(node) {
   let current = node;
@@ -611,10 +418,7 @@ export function sampleEquation(equation, origin, bounds, options = {}) {
 function sampleCartesian(equation, origin, bounds, options) {
   const step = clamp(Number(options.step ?? 3), 0.5, 20);
   const maxSamples = Math.max(50, Math.floor(options.maxSamples ?? 12000));
-  const anchorToOrigin = Boolean(options.anchorToOrigin);
   const maxJump = Number(options.discontinuityJump ?? Math.max(bounds.height * 0.7, 240));
-  const baseValue = equation.evaluateLocal(0, 0);
-  const yOffset = anchorToOrigin && Number.isFinite(baseValue) ? baseValue : 0;
   const xLimits = [origin.x - bounds.x, bounds.right - origin.x];
   const rawBranches = [];
   // The first in-arena run found walking outward from the shooter, one per
@@ -638,7 +442,7 @@ function sampleCartesian(equation, origin, bounds, options) {
 
     for (let distance = 0; distance <= limit + step && sampleCount < maxSamples; distance += step) {
       const localX = distance * direction;
-      const localY = equation.evaluateLocal(localX, 0) - yOffset;
+      const localY = equation.evaluateLocal(localX, 0);
       sampleCount += 1;
       if (!Number.isFinite(localY)) {
         emitCurrentBranch();
@@ -683,7 +487,7 @@ function sampleCartesian(equation, origin, bounds, options) {
     components: rawBranches,
     diagnostics: {
       sampleCount,
-      anchored: anchorToOrigin,
+      anchored: false,
       disconnectedComponents: Math.max(0, rawBranches.length - official.length)
     }
   };

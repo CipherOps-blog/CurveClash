@@ -5,14 +5,14 @@ A static, zero-build 2D equation battle game made with HTML, CSS, Canvas, and va
 ## Equation input
 
 - Type only the right-hand expression; the purple `f(x)` box and adjacent `=` are supplied by the interface.
-- Accepted: `x^2 - 1`, `0.5 * x`, `2 * sin(x / 1.5)`, `2 * ln(x + 1)`, `exp(x / 3) - 1`
-- Rejected: functions without a zero such as `x^2 + 1`, `min()`, `max()` or `abs()`, expressions using `y`, and implicit equations such as `x^2 + y^2 = 1`
+- Accepted: `x^2 - x`, `0.5 * x`, `2 * sin(x / 1.5)`, `2 * ln(x + 1)`, `exp(x / 3) - 1`
+- Rejected: functions that are not 0 at `x = 0` such as `x^2 + 1` or `x^2 - 1`, `min()`, `max()` or `abs()`, expressions using `y`, and implicit equations such as `x^2 + y^2 = 1`
 
 `ln()` is accepted as an exact synonym for the natural logarithm, which math.js
 itself spells `log()`; `log10()`, `log2()`, `exp()` and a constant base such as
-`2^x` are available too. Because every shot must reach `y = 0`, a bare
-exponential is refused: `exp(x)` is never zero, so subtract its value at the
-origin and fire `exp(x / 3) - 1` instead.
+`2^x` are available too. Because every shot must pass through `y = 0` at `x = 0`,
+a bare exponential is refused: `exp(x)` is never zero, so subtract its value at
+the origin and fire `exp(x / 3) - 1` instead.
 
 ### Units
 
@@ -31,7 +31,7 @@ in each direction, the first stretch that lies inside the arena is the shot, so
 a function with a vertical asymptote at the shooter — `ln(x)` is the everyday
 case — enters from the map edge and traces normally.
 
-Only `x` may vary, and the function must meet `y = 0` within the playable local `x` range. Coordinates use the firing player's position as the local `(0,0)`, with positive `y` pointing upward and one unit spanning 50 pixels. In Live Visualizer mode, dashed curves are previews only; they cannot eliminate players or change terrain.
+Only `x` may vary, and the function must equal `y = 0` at `x = 0` — the firing player's position. Coordinates use the firing player's position as the local `(0,0)`, with positive `y` pointing upward and one unit spanning 50 pixels. In Live Visualizer mode, dashed curves are previews only; they cannot eliminate players or change terrain.
 
 ## Structure
 

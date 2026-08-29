@@ -7,7 +7,7 @@ import {
   parseEquation
 } from "./src/equation-engine.js";
 import { buildRouteShot, planTerrainRoutes } from "./src/bot-planner.js";
-import { buildBeamEnvelope, buildCombatHitEvents } from "./src/beam.js";
+import { beamRadiusAtDistance, buildBeamEnvelope, buildCombatHitEvents } from "./src/beam.js";
 import { ObstacleField } from "./src/obstacle-field.js";
 import {
   MAX_CRATER_RADIUS,
@@ -28,6 +28,12 @@ const BOT_NAMES = ["Euclid", "Noether", "Gauss", "Ramanujan", "Turing", "Euler",
 const PLAYER_HIT_RADIUS = 26;
 const PREVIEW_DEBOUNCE = 130;
 const MIN_CRATER_RADIUS = 12;
+// A beam burns every surface it lights, not just the point its centerline
+// runs into. Contacts along the lit edge are merged onto a grid this coarse
+// and each carves a hole of this radius, which overlaps enough to melt a
+// continuous channel out of the wall face the beam swept.
+const BEAM_SCORCH_SPACING = 9;
+const BEAM_SCORCH_RADIUS = 11;
 const POWERUP_PICKUP_RADIUS = 13;
 const SCORE_FORMATTER = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 
@@ -597,22 +603,29 @@ class CurveClashGame {
     for (const spec of candidateSpecs) {
       // First prove that the unperturbed equation reaches the target through
       // the current terrain. Difficulty is deliberately applied only after a
-      // perfect, collision-valid family has been selected.
-      const perfect = chooseBotShot(bot, target, 100, null, {
-        math: window.math,
-        style: spec.style,
-        shapeParameter: spec.shapeParameter,
-        maxOffset: 340,
-        random: () => 0.5
-      });
-      const assessment = assess(perfect.perfectEquation, { type: "analytic", spec });
-      if (!assessment.reachesTarget) continue;
-      const shot = chooseBotShot(bot, target, difficulty, null, {
-        math: window.math,
-        style: spec.style,
-        shapeParameter: spec.shapeParameter,
-        maxOffset: 340
-      });
+      // perfect, collision-valid family has been selected. A degenerate spec
+      // that fails to parse or sample is skipped, exactly like a route family
+      // below, so one bad candidate never abandons the whole search.
+      let shot;
+      try {
+        const perfect = chooseBotShot(bot, target, 100, null, {
+          math: window.math,
+          style: spec.style,
+          shapeParameter: spec.shapeParameter,
+          maxOffset: 340,
+          random: () => 0.5
+        });
+        const assessment = assess(perfect.perfectEquation, { type: "analytic", spec });
+        if (!assessment.reachesTarget) continue;
+        shot = chooseBotShot(bot, target, difficulty, null, {
+          math: window.math,
+          style: spec.style,
+          shapeParameter: spec.shapeParameter,
+          maxOffset: 340
+        });
+      } catch {
+        continue;
+      }
       return {
         ...shot,
         parsed: parseEquation(shot.equation, window.math),
@@ -736,8 +749,8 @@ class CurveClashGame {
     this.dom.equationError.textContent = "";
     this.dom.inputModeLabel.textContent = state?.config.inputMode === "plain" ? "Plain text mode" : "Live visualizer";
     this.dom.equationHelp.textContent = state?.config.inputMode === "plain"
-      ? `Type only the expression after f(x) =, in units of ${LOCAL_UNIT_PIXELS} px. It must reach y = 0; ln() and exp() are available, min(), max() and abs() are not. Interpretation appears after validation.`
-      : `Type only the expression after f(x) =, in units of ${LOCAL_UNIT_PIXELS} px. It must reach y = 0; ln() and exp() are available, min(), max() and abs() are not.`;
+      ? `Type only the expression after f(x) =, in units of ${LOCAL_UNIT_PIXELS} px. It must pass through y = 0 at x = 0; ln() and exp() are available, min(), max() and abs() are not. Interpretation appears after validation.`
+      : `Type only the expression after f(x) =, in units of ${LOCAL_UNIT_PIXELS} px. It must pass through y = 0 at x = 0; ln() and exp() are available, min(), max() and abs() are not.`;
     this.dom.latexPreview.classList.toggle("plain-mode", state?.config.inputMode === "plain");
     this.setLatexPlaceholder(state?.config.inputMode === "plain" ? "Preview hidden until validation" : "Your equation will appear here");
   }
@@ -841,7 +854,6 @@ class CurveClashGame {
       players,
       shooterId: shooter.id,
       hitRadius: PLAYER_HIT_RADIUS,
-      anchorToOrigin: false,
       requirePlayableZero: true,
       step: 3,
       maxSamples: 18000,
@@ -1014,6 +1026,11 @@ class CurveClashGame {
         continue;
       }
 
+      // Freeze the lit shape before anything is animated or carved, so the
+      // surface the beam burns is exactly the surface the player watched it
+      // light up rather than a re-measurement against a cratered wall.
+      if (plan.beam) plan.beamEnvelope = buildBeamEnvelope(plan.paths, state.field);
+
       const shotRecord = this.beginShotRecord(shooter, plan);
       await this.animateCurve(shooter, plan, version);
       if (!this.isCurrent(version)) return;
@@ -1032,14 +1049,15 @@ class CurveClashGame {
         paths: plan.paths,
         color: shooter.color,
         shooterId: shooter.id,
-        beam: shotRecord.beam
+        beam: shotRecord.beam,
+        beamEnvelope: plan.beamEnvelope ?? null
       });
       state.currentTrace = null;
       state.stats.shots += 1;
       if (shooter.isHuman) state.stats.humanShots += 1;
 
       for (const impact of plan.impacts.filter((entry) => entry.type === "terrain")) {
-        const radius = MIN_CRATER_RADIUS + Math.random() * (MAX_CRATER_RADIUS - MIN_CRATER_RADIUS);
+        const radius = this.craterRadiusForImpact(plan, impact);
         this.registerPowerUpBreach(impact, radius, shotRecord.id);
         const removed = state.field.destroyCircle(impact.point.x, impact.point.y, radius);
         if (removed > 0) {
@@ -1049,6 +1067,7 @@ class CurveClashGame {
           this.collectNewlyExposedPowerUps(shooter);
         }
       }
+      this.burnBeamContacts(shooter, plan, shotRecord);
 
       this.commitShotRecord(shotRecord);
 
@@ -1064,7 +1083,7 @@ class CurveClashGame {
     const state = this.state;
     const pointCount = plan.paths.reduce((sum, path) => sum + path.length, 0);
     const duration = this.reducedMotion ? 320 : clamp(1250 + pointCount * 0.055, 1350, 2300);
-    const events = this.animationHitEvents(plan.paths, shooter);
+    const events = this.animationHitEvents(plan, shooter);
     this.prepareShotScores(shooter, events);
 
     state.currentTrace = {
@@ -1073,7 +1092,8 @@ class CurveClashGame {
       color: shooter.color,
       progress: 0,
       shooterId: shooter.id,
-      beam: Boolean(plan.beam)
+      beam: Boolean(plan.beam),
+      beamEnvelope: plan.beamEnvelope ?? null
     };
     return new Promise((resolve) => {
       const started = performance.now();
@@ -1105,13 +1125,15 @@ class CurveClashGame {
     });
   }
 
-  animationHitEvents(paths, shooter) {
+  animationHitEvents(plan, shooter) {
     return buildCombatHitEvents({
-      paths,
+      paths: plan.paths,
       shooter,
       players: this.state.players,
       terrain: this.state.field,
       beam: Boolean(shooter.hasBeam),
+      // The frozen lit shape, so a beam kills exactly as far out as it glows.
+      envelope: plan.beamEnvelope ?? null,
       defaultHitRadius: PLAYER_HIT_RADIUS
     });
   }
@@ -1155,6 +1177,46 @@ class CurveClashGame {
     if (!state || state.activeShotRecord !== record) return;
     state.replay.shots.push(record);
     state.activeShotRecord = null;
+  }
+
+  /** A plain shot bores a hole the size of its own randomised crater. A beam
+   * arrives as a cone, so where its centerline runs head-on into a wall the
+   * whole lit disc lands on that face and the hole is at least that wide. */
+  craterRadiusForImpact(plan, impact) {
+    const radius = MIN_CRATER_RADIUS + Math.random() * (MAX_CRATER_RADIUS - MIN_CRATER_RADIUS);
+    if (!plan.beam) return radius;
+    const marks = plan.beamEnvelope?.paths?.[impact.branchIndex];
+    const reach = marks?.length ? marks[marks.length - 1].distance : 0;
+    return Math.max(radius, beamRadiusAtDistance(reach));
+  }
+
+  /** Melt every wall surface the beam actually lit. The envelope collected one
+   * contact per cross-section whose lit edge ended on terrain, which traces the
+   * illuminated face of each obstruction the cone swept past; shadowed stretches
+   * contribute none. Carving is batched because a long graze produces dozens of
+   * overlapping holes and each rebuild of the terrain bitmap is a full repaint. */
+  burnBeamContacts(shooter, plan, shotRecord) {
+    const state = this.state;
+    const contacts = mergeNearbyPoints(plan.beamEnvelope?.contacts, BEAM_SCORCH_SPACING);
+    if (!state || !contacts.length) return;
+
+    let removed = 0;
+    for (const point of contacts) {
+      this.registerPowerUpBreach({ point }, BEAM_SCORCH_RADIUS, shotRecord.id);
+      removed += state.field.destroyCircle(point.x, point.y, BEAM_SCORCH_RADIUS, false);
+    }
+    if (removed <= 0) return;
+
+    state.field.rebuildVisual(document.documentElement.dataset.theme === "dark");
+    // The whole scorch is one event, however many holes it took to cut it.
+    state.stats.craters += 1;
+    for (const point of contacts) {
+      shotRecord.craters.push({ point: { ...point }, radius: BEAM_SCORCH_RADIUS, scorch: true });
+    }
+    for (const point of everyNth(contacts, 4)) {
+      this.spawnBurst(point.x, point.y, "#f2c5a7", 6);
+    }
+    this.collectNewlyExposedPowerUps(shooter);
   }
 
   registerPowerUpBreach(impact, craterRadius, shotId) {
@@ -1502,13 +1564,24 @@ class CurveClashGame {
       );
       for (let craterIndex = 0; craterIndex < shot.craters.length; craterIndex += 1) {
         const crater = shot.craters[craterIndex];
-        state.field.destroyCircle(crater.point.x, crater.point.y, crater.radius);
-        state.stats.craters += 1;
-        this.spawnBurst(crater.point.x, crater.point.y, "#f2c5a7", 12);
+        // A beam's scorch was recorded as many small overlapping holes cut in
+        // one instant, so they are carved without repainting the terrain each
+        // time and stay the single event they were.
+        state.field.destroyCircle(crater.point.x, crater.point.y, crater.radius, !crater.scorch);
+        if (crater.scorch) {
+          if (craterIndex % 4 === 0) this.spawnBurst(crater.point.x, crater.point.y, "#f2c5a7", 6);
+        } else {
+          state.stats.craters += 1;
+          this.spawnBurst(crater.point.x, crater.point.y, "#f2c5a7", 12);
+        }
         for (const pickup of shot.pickups.filter((entry) => entry.afterCraterIndex === craterIndex)) {
           this.applyReplayPickup(pickup);
           appliedPickups.add(pickup);
         }
+      }
+      if (shot.craters.some((crater) => crater.scorch)) {
+        state.field.rebuildVisual(document.documentElement.dataset.theme === "dark");
+        state.stats.craters += 1;
       }
       // Compatibility for records without timing metadata.
       for (const pickup of shot.pickups) {
@@ -1946,10 +2019,14 @@ class CurveClashGame {
     context.restore();
   }
 
-  /** Once-per-shot beam shape, cached on the trace/preview object itself so a
-   * later crater never reshapes a beam that has already fired. See beam.js. */
+  /** Once-per-shot beam shape. A fired shot carries its own envelope, built
+   * against the terrain as it stood when it was traced, so a later crater — or
+   * this shot's own — never reshapes a beam that has already fired. Anything
+   * without one (previews, replayed traces) falls back to a cached build
+   * against the current field. See beam.js. */
   getBeamEnvelope(source) {
-    if (!source?.paths?.length) return [];
+    if (!source?.paths?.length) return null;
+    if (source.beamEnvelope) return source.beamEnvelope;
     let envelope = this.beamEnvelopeCache.get(source);
     if (!envelope) {
       envelope = buildBeamEnvelope(source.paths, this.state?.field ?? null);
@@ -1959,76 +2036,74 @@ class CurveClashGame {
   }
 
   drawBeamEnvelope(context, source, color, progress = 1, preview = false, opacity = 1) {
-    const paths = source?.paths;
-    if (!paths?.length) return;
-    const envelopes = this.getBeamEnvelope(source);
+    const envelope = this.getBeamEnvelope(source);
+    if (!envelope || progress <= 0) return;
     context.save();
     context.fillStyle = color;
     context.globalAlpha = opacity * (preview ? 0.13 : 0.2);
     context.shadowColor = color;
     context.shadowBlur = preview ? 7 : 13;
 
-    for (let pathIndex = 0; pathIndex < paths.length; pathIndex += 1) {
-      const marks = envelopes[pathIndex];
-      if (!marks || marks.length < 2 || progress <= 0) continue;
-      const totalDistance = marks[marks.length - 1].distance;
-      const revealedDistance = totalDistance * clamp(progress, 0, 1);
-
-      // Cross-sections already carry their own lit extents, so revealing the
-      // curve is just walking marks up to the animated distance and, at the
-      // cut, interpolating one final cross-section exactly at that edge.
-      const visible = [];
-      for (const mark of marks) {
-        if (mark.distance <= revealedDistance) {
-          visible.push(mark);
-          continue;
-        }
-        const previous = visible[visible.length - 1];
-        if (previous) {
-          const span = mark.distance - previous.distance;
-          const amount = span > 1e-6 ? (revealedDistance - previous.distance) / span : 0;
-          visible.push({
-            point: {
-              x: previous.point.x + (mark.point.x - previous.point.x) * amount,
-              y: previous.point.y + (mark.point.y - previous.point.y) * amount
-            },
-            topExtent: previous.topExtent + (mark.topExtent - previous.topExtent) * amount,
-            bottomExtent: previous.bottomExtent + (mark.bottomExtent - previous.bottomExtent) * amount
-          });
-        }
-        break;
-      }
+    for (const marks of envelope.paths) {
+      const visible = this.revealedBeamSections(marks, progress);
       if (visible.length < 2) continue;
 
-      for (let index = 0; index < visible.length - 1; index += 1) {
-        const first = visible[index];
-        const second = visible[index + 1];
-        const dx = second.point.x - first.point.x;
-        const dy = second.point.y - first.point.y;
-        const length = Math.hypot(dx, dy);
-        if (!(length > 1e-6)) continue;
-        const nx = -dy / length;
-        const ny = dx / length;
-        context.beginPath();
-        context.moveTo(first.point.x + nx * first.topExtent, first.point.y + ny * first.topExtent);
-        context.lineTo(second.point.x + nx * second.topExtent, second.point.y + ny * second.topExtent);
-        context.lineTo(second.point.x - nx * second.bottomExtent, second.point.y - ny * second.bottomExtent);
-        context.lineTo(first.point.x - nx * first.bottomExtent, first.point.y - ny * first.bottomExtent);
-        context.closePath();
-        context.fill();
-        if (index > 0) {
-          // Fill the small wedge at each bend without ever painting past
-          // whichever side is already shadowed there.
-          const joinRadius = Math.min(first.topExtent, first.bottomExtent);
-          if (joinRadius > 0.5) {
-            context.beginPath();
-            context.arc(first.point.x, first.point.y, joinRadius, 0, Math.PI * 2);
-            context.fill();
-          }
-        }
+      // One closed polygon per path — up the lit edge on one side and back
+      // down the other. Filling the whole band in a single pass keeps the
+      // glow even, since per-segment quads would overlap at every bend and
+      // paint a darker seam there, and leaves no wedge-shaped gap on the
+      // outside of a turn when one side is shadowed and the other is not.
+      context.beginPath();
+      for (let index = 0; index < visible.length; index += 1) {
+        const mark = visible[index];
+        const x = mark.point.x + mark.nx * mark.topExtent;
+        const y = mark.point.y + mark.ny * mark.topExtent;
+        if (index === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
       }
+      for (let index = visible.length - 1; index >= 0; index -= 1) {
+        const mark = visible[index];
+        context.lineTo(
+          mark.point.x - mark.nx * mark.bottomExtent,
+          mark.point.y - mark.ny * mark.bottomExtent
+        );
+      }
+      context.closePath();
+      context.fill();
     }
     context.restore();
+  }
+
+  /** Cross-sections already carry their own lit extents, so revealing the beam
+   * is just walking marks up to the animated distance and, at the cut,
+   * interpolating one final cross-section exactly at that edge. */
+  revealedBeamSections(marks, progress) {
+    if (!marks || marks.length < 2) return [];
+    const revealedDistance = marks[marks.length - 1].distance * clamp(progress, 0, 1);
+    const visible = [];
+    for (const mark of marks) {
+      if (mark.distance <= revealedDistance) {
+        visible.push(mark);
+        continue;
+      }
+      const previous = visible[visible.length - 1];
+      if (previous) {
+        const span = mark.distance - previous.distance;
+        const amount = span > 1e-6 ? (revealedDistance - previous.distance) / span : 0;
+        visible.push({
+          point: {
+            x: previous.point.x + (mark.point.x - previous.point.x) * amount,
+            y: previous.point.y + (mark.point.y - previous.point.y) * amount
+          },
+          nx: previous.nx,
+          ny: previous.ny,
+          topExtent: previous.topExtent + (mark.topExtent - previous.topExtent) * amount,
+          bottomExtent: previous.bottomExtent + (mark.bottomExtent - previous.bottomExtent) * amount
+        });
+      }
+      break;
+    }
+    return visible;
   }
 
   drawPowerUps(context, time) {
@@ -2324,6 +2399,27 @@ function clonePowerUps(powerUps) {
     position: powerUp.position ? { ...powerUp.position } : { x: powerUp.x, y: powerUp.y },
     breachShotIds: [...(powerUp.breachShotIds ?? [])]
   }));
+}
+
+/** Collapse points that land in the same `spacing`-sized cell down to one.
+ * The beam samples its lit edge far more finely than terrain can be carved,
+ * so this keeps a swept wall face to a handful of holes instead of hundreds
+ * of near-identical ones. */
+function mergeNearbyPoints(points, spacing) {
+  const seen = new Set();
+  const merged = [];
+  for (const point of points ?? []) {
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
+    const key = `${Math.round(point.x / spacing)}:${Math.round(point.y / spacing)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(point);
+  }
+  return merged;
+}
+
+function everyNth(items, stride) {
+  return items.filter((_item, index) => index % stride === 0);
 }
 
 function distanceToPaths(paths, point) {
