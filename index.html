@@ -188,6 +188,14 @@
             <span id="timer-display" class="timer-display" aria-live="polite">03:00</span>
           </div>
           <div class="topbar-actions">
+            <button
+              id="sidebar-toggle"
+              class="text-button sidebar-toggle"
+              type="button"
+              aria-expanded="true"
+              aria-controls="game-sidebar"
+              title="Hide the ranking and turn order to give the map the full width"
+            >Hide panel</button>
             <button id="stop-replay-btn" class="text-button is-hidden" type="button" title="Stop replay and return to the final ranking">Back to results</button>
             <button id="new-game-btn" class="text-button" type="button" title="Return to configuration">New game</button>
           </div>
@@ -248,7 +256,7 @@
             </section>
           </section>
 
-          <aside class="game-sidebar">
+          <aside class="game-sidebar" id="game-sidebar">
             <section class="hud-card roster-card" id="roster-section">
               <div class="card-heading">
                 <button
@@ -269,31 +277,22 @@
               </div>
             </section>
 
+            <!-- Turn order and submitted curves are one list: both are a row
+                 per player in the same fixed firing order, so each curve is
+                 revealed inside the row that already names its shooter. -->
             <section class="hud-card order-card" id="order-section">
               <div class="card-heading">
                 <button class="card-collapse-toggle" type="button" aria-expanded="true" aria-controls="order-body">
                   <span class="collapse-chevron" aria-hidden="true">⌄</span>
-                  <h2>Fixed turn order</h2>
+                  <h2>Turn order &amp; curves</h2>
                 </button>
-                <span class="lock-icon" title="The order stays fixed">⌁</span>
+                <span id="submission-count" title="Curves locked in this turn">0/4</span>
               </div>
               <div id="order-body" class="card-body">
                 <ol id="turn-order" class="turn-order"></ol>
-              </div>
-            </section>
-
-            <section class="hud-card equations-card" id="equations-section">
-              <div class="card-heading">
-                <button class="card-collapse-toggle" type="button" aria-expanded="true" aria-controls="equations-body">
-                  <span class="collapse-chevron" aria-hidden="true">⌄</span>
-                  <h2>Submitted curves</h2>
-                </button>
-                <span id="submission-count">0/4</span>
-              </div>
-              <div id="equations-body" class="card-body">
-                <div id="equation-reveal" class="equation-reveal">
-                  <p class="empty-state">Equations stay secret until the input phase closes.</p>
-                </div>
+                <!-- Replay lists shots chronologically rather than by player,
+                     so it takes over the body instead of filling the rows. -->
+                <div id="equation-reveal" class="equation-reveal is-hidden"></div>
               </div>
             </section>
           </aside>

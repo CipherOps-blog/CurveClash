@@ -55,6 +55,7 @@ class CurveClashGame {
       themeToggle: $("#theme-toggle"),
       themeIcon: $("#theme-toggle .theme-icon"),
       newGameButton: $("#new-game-btn"),
+      sidebarToggle: $("#sidebar-toggle"),
       stopReplayButton: $("#stop-replay-btn"),
       canvasWrap: $("#canvas-wrap"),
       canvas: $("#game-canvas"),
@@ -183,6 +184,7 @@ class CurveClashGame {
     });
 
     this.bindSidebarCollapse();
+    this.bindSidebarToggle();
   }
 
   /**
@@ -219,6 +221,40 @@ class CurveClashGame {
   setCardCollapsed(card, toggle, collapsed) {
     card.classList.toggle("is-collapsed", collapsed);
     toggle.setAttribute("aria-expanded", String(!collapsed));
+  }
+
+  /**
+   * Hide the whole sidebar and give its width back to the map. On a landscape
+   * phone that is the difference between a usable arena and a letterbox, and
+   * the ranking is one tap away whenever it is actually wanted.
+   */
+  bindSidebarToggle() {
+    const button = this.dom.sidebarToggle;
+    if (!button) return;
+    let hidden = false;
+    try {
+      hidden = localStorage.getItem("curve-clash-sidebar-hidden") === "true";
+    } catch {
+      // Storage can be unavailable in privacy-focused browser contexts.
+    }
+    this.setSidebarHidden(hidden);
+    button.addEventListener("click", () => {
+      const next = !document.body.classList.contains("sidebar-hidden");
+      this.setSidebarHidden(next);
+      try {
+        localStorage.setItem("curve-clash-sidebar-hidden", String(next));
+      } catch {
+        // The toggle still works for the current page when storage is blocked.
+      }
+    });
+  }
+
+  /** The canvas needs no explicit refit here: a ResizeObserver already watches
+   * its wrapper, and the wrapper's width is exactly what this changes. */
+  setSidebarHidden(hidden) {
+    document.body.classList.toggle("sidebar-hidden", hidden);
+    this.dom.sidebarToggle.setAttribute("aria-expanded", String(!hidden));
+    this.dom.sidebarToggle.textContent = hidden ? "Show panel" : "Hide panel";
   }
 
   restoreTheme() {
@@ -755,12 +791,13 @@ class CurveClashGame {
     this.setLatexPlaceholder(state?.config.inputMode === "plain" ? "Preview hidden until validation" : "Your equation will appear here");
   }
 
+  /** Curves go back to being secret at the start of an input phase, so the
+   * turn-order rows drop them and the replay list steps aside. */
   resetEquationReveal() {
+    for (const player of this.state?.players ?? []) player.equationNode = null;
     this.dom.equationReveal.replaceChildren();
-    const empty = document.createElement("p");
-    empty.className = "empty-state";
-    empty.textContent = "Equations stay secret until the input phase closes.";
-    this.dom.equationReveal.append(empty);
+    this.dom.equationReveal.classList.add("is-hidden");
+    this.dom.turnOrder.classList.remove("is-hidden");
   }
 
   handleEquationInput(immediate = false) {
@@ -918,55 +955,46 @@ class CurveClashGame {
     const participants = this.state.players.filter(
       (player) => !player.removed && player.validated && !this.isHoldingFire(player)
     );
-    this.dom.equationReveal.replaceChildren();
-    const sideList = document.createElement("ol");
-    sideList.className = "equation-list";
-    for (const player of participants) sideList.append(this.createEquationItem(player, "side"));
-    this.dom.equationReveal.append(sideList);
+    // Each curve is rendered once here and kept as a detached node, because
+    // the turn-order rows that show it are rebuilt on every interface update
+    // and re-running KaTeX that often would be pure waste.
+    for (const player of participants) player.equationNode = this.buildEquationNode(player);
+    this.updateTurnOrder();
 
     this.dom.modalEquations.replaceChildren();
     const modalList = document.createElement("ol");
     modalList.className = "reveal-list";
-    participants.forEach((player, index) => modalList.append(this.createEquationItem(player, "modal", index)));
+    participants.forEach((player, index) => modalList.append(this.createEquationItem(player, index)));
     this.dom.modalEquations.append(modalList);
   }
 
-  createEquationItem(player, placement, index = 0) {
+  createEquationItem(player, index = 0) {
     const item = document.createElement("li");
     item.style.setProperty("--player-color", player.color);
-    if (placement === "modal") {
-      item.className = "reveal-item";
-      item.style.setProperty("--item-index", String(index));
-      const header = document.createElement("div");
-      header.className = "reveal-player";
-      const name = document.createElement("span");
-      name.textContent = player.name;
-      const type = document.createElement("small");
-      type.textContent = player.isHuman ? "Human" : "Bot";
-      header.append(name, type);
-      const equation = document.createElement("div");
-      equation.className = "reveal-equation";
-      if (player.parsed) this.renderLatex(equation, equationToLatex(player.parsed, window.math));
-      else equation.textContent = "No equation — null shot";
-      item.append(header, equation);
-      return item;
-    }
-
-    item.className = "equation-item";
+    item.className = "reveal-item";
+    item.style.setProperty("--item-index", String(index));
     const header = document.createElement("div");
-    header.className = "equation-item-header";
-    const color = document.createElement("i");
-    color.className = "equation-color";
+    header.className = "reveal-player";
     const name = document.createElement("span");
-    name.className = "player-name";
     name.textContent = player.name;
-    header.append(color, name);
+    const type = document.createElement("small");
+    type.textContent = player.isHuman ? "Human" : "Bot";
+    header.append(name, type);
+    const equation = document.createElement("div");
+    equation.className = "reveal-equation";
+    if (player.parsed) this.renderLatex(equation, equationToLatex(player.parsed, window.math));
+    else equation.textContent = "No equation — null shot";
+    item.append(header, equation);
+    return item;
+  }
+
+  /** The compact curve shown inside a player's turn-order row. */
+  buildEquationNode(player) {
     const equation = document.createElement("div");
     equation.className = "equation-latex";
     if (player.parsed) this.renderLatex(equation, equationToLatex(player.parsed, window.math));
-    else equation.textContent = "∅  Null shot";
-    item.append(header, equation);
-    return item;
+    else equation.textContent = "∅ Null shot";
+    return equation;
   }
 
   async runSimulation(version = this.runtimeVersion) {
@@ -1742,11 +1770,15 @@ class CurveClashGame {
     this.dom.submissionCount.textContent = `${locked}/${active.length}`;
   }
 
+  /** Replay is chronological, one entry per shot across all players, so it
+   * replaces the per-player turn-order rows for the duration. */
   resetReplayEquationReveal() {
     this.dom.equationReveal.replaceChildren();
     const list = document.createElement("ol");
     list.className = "equation-list replay-equation-list";
     this.dom.equationReveal.append(list);
+    this.dom.equationReveal.classList.remove("is-hidden");
+    this.dom.turnOrder.classList.add("is-hidden");
   }
 
   appendReplayEquation(shot) {
@@ -1871,7 +1903,17 @@ class CurveClashGame {
         : state.currentShooterId === player.id
           ? "now"
           : this.isHoldingFire(player) ? "holds fire" : "";
-      item.append(dot, copy, stateText);
+
+      const row = document.createElement("div");
+      row.className = "turn-item-row";
+      row.append(dot, copy, stateText);
+      item.append(row);
+      // Once the input phase closes, the curve joins the row that already
+      // names its shooter rather than repeating that name in a second list.
+      if (player.equationNode) {
+        item.classList.add("has-equation");
+        item.append(player.equationNode.cloneNode(true));
+      }
       this.dom.turnOrder.append(item);
     }
   }
@@ -1900,8 +1942,14 @@ class CurveClashGame {
 
   fitCanvas() {
     if (!this.state || this.dom.gameScreen.classList.contains("is-hidden")) return;
-    const availableWidth = Math.max(240, this.dom.canvasWrap.clientWidth - 28);
-    const availableHeight = Math.max(180, this.dom.canvasWrap.clientHeight - 28);
+    // Floors here used to be 240x180, which on a short landscape phone is
+    // larger than the wrapper itself — the canvas then overflowed and the
+    // arena grew its own scrollbars. The wrapper's CSS min-height is what
+    // guarantees a usable arena; this only has to fit inside whatever that
+    // leaves, and the inset shrinks with it so a small arena is not all margin.
+    const inset = Math.min(28, this.dom.canvasWrap.clientHeight * 0.12);
+    const availableWidth = Math.max(1, this.dom.canvasWrap.clientWidth - inset);
+    const availableHeight = Math.max(1, this.dom.canvasWrap.clientHeight - inset);
     const scale = Math.min(1, availableWidth / this.state.width, availableHeight / this.state.height);
     this.dom.canvas.style.width = `${Math.floor(this.state.width * scale)}px`;
     this.dom.canvas.style.height = `${Math.floor(this.state.height * scale)}px`;

@@ -1402,10 +1402,30 @@ input[type="range"]::-moz-range-thumb {
   counter-reset: turn-order;
 }
 
+/* A turn-order row is a player line, plus that player's curve once the input
+   phase has closed — so the two stack in a column rather than sitting on the
+   single flex row the other lists use. */
 .turn-item {
+  display: grid;
   min-height: 39px;
+  align-items: stretch;
+  gap: 4px;
   padding: 7px 9px;
   counter-increment: turn-order;
+}
+
+.turn-item-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Indented past the order badge so the curve reads as belonging to the name
+   above it rather than starting a new column. */
+.turn-item.has-equation .equation-latex {
+  padding-left: 33px;
+  font-size: 0.8rem;
 }
 
 .turn-player-copy {
@@ -1446,7 +1466,7 @@ input[type="range"]::-moz-range-thumb {
   opacity: 0.46;
 }
 
-.turn-item::before {
+.turn-item-row::before {
   display: grid;
   width: 23px;
   height: 23px;
@@ -3364,13 +3384,23 @@ aside.game-sidebar {
   -webkit-backdrop-filter: blur(17px);
 }
 
-/* The roster and turn-order cards stay at their natural size (scrolling
-   internally past the cap above); submitted curves is the one panel meant to
-   grow and absorb whatever vertical room those two don't use. */
-.game-sidebar > .equations-card {
+/* The roster keeps its natural size (scrolling internally past the cap
+   above); turn order & curves is the panel meant to grow and absorb whatever
+   vertical room the roster doesn't use. */
+.game-sidebar > .order-card {
   flex: 1 1 145px;
   min-height: 145px;
   max-height: none;
+}
+
+/* Hiding the panel hands its whole column back to the map. */
+body.sidebar-hidden .game-sidebar {
+  display: none;
+}
+
+body.sidebar-hidden .game-shell,
+body.sidebar-hidden .game-layout {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* A collapsed card shows only its heading, whatever its usual cap is. */
@@ -3450,7 +3480,7 @@ aside.game-sidebar {
   text-transform: uppercase;
 }
 
-.card-heading > span:not(.lock-icon) {
+.card-heading > span:not(.count-badge) {
   color: var(--ink-faint);
   font-size: 0.66rem;
   font-weight: 750;
@@ -3463,41 +3493,15 @@ aside.game-sidebar {
   place-items: center;
   padding: 0 6px;
   border-radius: 999px;
-  color: var(--lavender-strong) !important;
+  color: var(--lavender-strong);
   background: var(--lavender-soft);
   font-family: var(--font-display);
-  font-weight: 850 !important;
-}
-
-.lock-icon {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border-radius: 8px;
-  color: var(--ink-faint);
-  background: var(--surface-soft);
-  font-size: 0.7rem;
+  font-weight: 850;
 }
 
 .equation-reveal {
   display: grid;
   gap: 7px;
-}
-
-.empty-state {
-  display: grid;
-  min-height: 79px;
-  place-items: center;
-  padding: 13px;
-  margin: 0;
-  border: 1px dashed var(--line-strong);
-  border-radius: 12px;
-  color: var(--ink-faint);
-  background: color-mix(in srgb, var(--surface-soft), transparent 25%);
-  font-size: 0.67rem;
-  line-height: 1.45;
-  text-align: center;
 }
 
 /* Production reveal dialog. The .modal class is on the backdrop. */
@@ -3670,9 +3674,6 @@ aside.game-sidebar {
     align-items: start;
   }
 
-  .game-sidebar > .equations-card {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 660px) {
@@ -3742,7 +3743,8 @@ aside.game-sidebar {
   }
 
   .text-button#new-game-btn,
-  .text-button#stop-replay-btn {
+  .text-button#stop-replay-btn,
+  .text-button#sidebar-toggle {
     display: inline-grid;
     width: 34px;
     min-width: 34px;
@@ -3761,6 +3763,24 @@ aside.game-sidebar {
   .text-button#stop-replay-btn::before {
     content: "↩";
     font-size: 1rem;
+  }
+
+  /* The label is dropped along with the other topbar buttons', so the icon
+     has to carry the state: filled while the panel is up, hollow once it is
+     hidden and the map has the full width. */
+  .text-button#sidebar-toggle::before {
+    content: "▤";
+    font-size: 0.95rem;
+  }
+
+  body.sidebar-hidden .text-button#sidebar-toggle {
+    color: var(--lavender-strong);
+    border-color: color-mix(in srgb, var(--lavender-strong), transparent 55%);
+    background: var(--lavender-soft);
+  }
+
+  body.sidebar-hidden .text-button#sidebar-toggle::before {
+    content: "▥";
   }
 
   .equation-dock {
@@ -3806,10 +3826,6 @@ aside.game-sidebar {
 
   aside.game-sidebar {
     grid-template-columns: 1fr;
-  }
-
-  .game-sidebar > .equations-card {
-    grid-column: auto;
   }
 }
 
@@ -3944,51 +3960,92 @@ aside.game-sidebar {
   }
 
   #canvas-wrap {
-    min-height: 120px;
+    /* Low enough that the arena yields rather than pushing the dock off the
+       bottom on the shortest landscape viewports; it takes every pixel the
+       dock doesn't need above this. */
+    min-height: 96px;
   }
 
   .equation-dock {
     max-height: none;
-    padding: 8px 10px;
-    gap: 5px;
+    padding: 7px 10px;
+    gap: 4px;
+  }
+
+  /* The dock is the one block competing with the arena for height, so its
+     heading collapses to a single compact line: the mode sits inline with the
+     title instead of stacked above it. */
+  .dock-heading {
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dock-heading > div {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 7px;
+  }
+
+  .dock-heading .eyebrow {
+    margin: 0;
+    font-size: 0.55rem;
+  }
+
+  .dock-heading h2 {
+    font-size: 0.82rem;
+  }
+
+  .equation-dock .chip-button {
+    min-height: 30px;
+    padding: 4px 8px;
   }
 
   #equation-help {
     display: none;
   }
 
-  /* Landscape has width to spare even once it's tight on height, so the
-     roster and turn order sit side by side — one shared row of vertical
-     budget instead of two stacked ones — with submitted curves below using
-     whatever is left. Each card still caps and scrolls internally past that,
-     for whatever count of players doesn't fit even this way. */
+  /* Two cards, stacked, each taking a fixed share of a column that is exactly
+     as tall as the viewport — so the sidebar itself never scrolls no matter
+     how many players there are. Overflow is pushed down into each card's own
+     body, which is the only thing here allowed to scroll, and even that is
+     avoidable: the whole panel can be toggled away. */
   aside.game-sidebar {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: auto minmax(0, 1fr);
-    overflow-x: hidden;
-    overflow-y: auto;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 2fr) minmax(0, 3fr);
+    /* The wider mobile breakpoint above lays the sidebar out as a content-
+       sized two-column grid and sets align-items: start with it. That start
+       has to be undone here or the cards size to their content and spill out
+       of the bounded rows this block exists to give them. */
+    align-items: stretch;
+    overflow: hidden;
     gap: 5px;
   }
 
-  .game-sidebar > .roster-card,
-  .game-sidebar > .order-card {
-    grid-row: 1;
-  }
-
-  .game-sidebar > .equations-card {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    min-height: 90px;
-  }
-
   .game-sidebar > .hud-card {
-    max-height: 42vh;
+    min-height: 0;
+    max-height: none;
     padding: 7px 9px;
   }
 
+  /* A collapsed card gives its share of the column to its neighbour instead
+     of leaving a gap where its body used to be. */
+  aside.game-sidebar:has(> .roster-card.is-collapsed) {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  aside.game-sidebar:has(> .order-card.is-collapsed) {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  /* The card is a flex column whose body absorbs the slack, so the heading
+     has to refuse to shrink — otherwise the bounded rows above squeeze it
+     down to a few pixels and clip the card's own title. */
   .card-heading {
     min-height: 0;
+    flex: 0 0 auto;
     margin-bottom: 3px;
   }
 
@@ -4000,11 +4057,29 @@ aside.game-sidebar {
     display: none;
   }
 
+  .turn-order,
+  .equation-list,
+  .player-list {
+    gap: 4px;
+  }
+
+  /* Name and coordinates share a line rather than stacking, which buys back
+     roughly a row's worth of height across the list. */
+  .turn-player-copy {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
   .player-item,
   .turn-item,
   .equation-item {
-    gap: 7px;
+    gap: 3px;
     padding: 4px 6px;
+  }
+
+  .turn-item-row {
+    gap: 7px;
   }
 
   .player-avatar,
@@ -4012,6 +4087,12 @@ aside.game-sidebar {
     width: 21px;
     height: 21px;
     border-width: 2px;
+  }
+
+  .turn-item-row::before {
+    width: 18px;
+    height: 18px;
+    font-size: 0.56rem;
   }
 
   .turn-player-copy .player-name,
@@ -4023,5 +4104,10 @@ aside.game-sidebar {
   .order-state,
   .player-score {
     font-size: 0.58rem;
+  }
+
+  .turn-item.has-equation .equation-latex {
+    padding-left: 25px;
+    font-size: 0.68rem;
   }
 }
