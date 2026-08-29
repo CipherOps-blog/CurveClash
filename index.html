@@ -78,9 +78,9 @@
                     <small>One human, any number of rivals</small>
                   </span>
                   <span class="stepper">
-                    <button type="button" data-step="-1" aria-label="Remove one bot">−</button>
+                    <button type="button" data-step="-1" data-target="bot-count" aria-label="Remove one bot">−</button>
                     <output id="bot-count-output" for="bot-count">3</output>
-                    <button type="button" data-step="1" aria-label="Add one bot">+</button>
+                    <button type="button" data-step="1" data-target="bot-count" aria-label="Add one bot">+</button>
                     <input id="bot-count" name="botCount" type="number" min="1" value="3" />
                   </span>
                 </label>
@@ -100,13 +100,17 @@
                   <small id="behavior-help">Each bot randomly targets another survivor, human or bot.</small>
                 </div>
 
-                <label id="difficulty-field" class="field-stack" for="difficulty">
-                  <span class="range-heading">
-                    <span class="field-label">Bot accuracy</span>
-                    <output id="difficulty-output" for="difficulty">72%</output>
+                <label id="difficulty-field" class="field-row" for="difficulty">
+                  <span>
+                    <strong>Bot accuracy</strong>
+                    <small>Wild at 0%, perfect at 100%</small>
                   </span>
-                  <input id="difficulty" name="difficulty" type="range" min="0" max="100" value="72" />
-                  <span class="range-labels"><small>Wild</small><small>Perfect</small></span>
+                  <span class="stepper">
+                    <button type="button" data-step="-1" data-target="difficulty" aria-label="Lower bot accuracy">−</button>
+                    <output id="difficulty-output" for="difficulty">72%</output>
+                    <button type="button" data-step="1" data-target="difficulty" aria-label="Raise bot accuracy">+</button>
+                    <input id="difficulty" name="difficulty" type="number" min="0" max="100" step="1" value="72" />
+                  </span>
                 </label>
               </fieldset>
 

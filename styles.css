@@ -148,10 +148,6 @@ button,
 select,
 input[type="checkbox"],
 input[type="radio"],
-input[type="range"] {
-  cursor: pointer;
-}
-
 button:disabled,
 input:disabled,
 select:disabled {
@@ -784,54 +780,6 @@ select {
   font-size: 0.75rem;
   font-weight: 800;
   text-align: center;
-}
-
-.range-row input[type="range"] {
-  grid-column: 1 / -1;
-}
-
-input[type="range"] {
-  width: 100%;
-  height: 22px;
-  margin: 0;
-  border: 0;
-  outline: 0;
-  appearance: none;
-  background: transparent;
-}
-
-input[type="range"]::-webkit-slider-runnable-track {
-  height: 6px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--lavender), var(--pink));
-  box-shadow: inset 0 0 0 1px rgba(72, 61, 83, 0.08);
-}
-
-input[type="range"]::-webkit-slider-thumb {
-  width: 19px;
-  height: 19px;
-  margin-top: -6.5px;
-  border: 4px solid var(--surface-solid);
-  border-radius: 50%;
-  appearance: none;
-  background: var(--lavender-strong);
-  box-shadow: 0 2px 9px rgba(70, 57, 91, 0.3);
-}
-
-input[type="range"]::-moz-range-track {
-  height: 6px;
-  border: 0;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--lavender), var(--pink));
-}
-
-input[type="range"]::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  border: 4px solid var(--surface-solid);
-  border-radius: 50%;
-  background: var(--lavender-strong);
-  box-shadow: 0 2px 9px rgba(70, 57, 91, 0.3);
 }
 
 .switch-field {
@@ -2708,12 +2656,6 @@ input[type="range"]::-moz-range-thumb {
 
 .field-row small,
 .field-stack > small,
-.range-labels small {
-  color: var(--ink-faint);
-  font-size: 0.68rem;
-  line-height: 1.35;
-}
-
 .field-stack {
   display: grid;
   min-width: 0;
@@ -2843,25 +2785,6 @@ input[type="range"]::-moz-range-thumb {
 
 .segmented label:hover > span {
   color: var(--ink);
-}
-
-.range-heading,
-.range-labels {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.range-heading output {
-  min-width: 48px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  color: var(--lavender-strong);
-  background: var(--lavender-soft);
-  font-size: 0.72rem;
-  font-weight: 850;
-  text-align: center;
 }
 
 #difficulty-field.is-disabled,
@@ -4100,10 +4023,26 @@ body.sidebar-hidden .game-layout {
     display: none;
   }
 
-  /* The icon is decoration the narrow column cannot afford: without it the
-     mode name fits on one line and the two cards stay the same height. */
+  /* Every option group puts its label beside its control rather than above
+     it. Stacked, five labels cost five lines of a screen that has barely a
+     dozen; there is width to put them in instead. */
+  .field-stack {
+    align-items: center;
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+    gap: 4px 8px;
+  }
+
+  .field-stack .field-label {
+    margin: 0;
+  }
+
+  /* Beside its label rather than under it, a mode card has roughly half a
+     column to live in. The icon is decoration it cannot afford there, and the
+     name must not wrap — a second line in one card sets the height of every
+     group in the row. */
   .mode-card {
-    padding: 7px 8px;
+    min-height: 0;
+    padding: 6px 7px;
     gap: 7px;
   }
 
@@ -4111,9 +4050,52 @@ body.sidebar-hidden .game-layout {
     display: none;
   }
 
+  .mode-card strong {
+    white-space: nowrap;
+  }
+
+  .segmented label > span {
+    min-height: 30px;
+    padding: 4px 5px;
+  }
+
   .segmented label span,
   .mode-card strong {
-    font-size: 0.66rem;
+    font-size: 0.6rem;
+  }
+
+  /* Labels hold one line and give the rest of the row to the control, which
+     otherwise gets squeezed until its options overlap. */
+  .field-stack .field-label {
+    font-size: 0.6rem;
+    white-space: nowrap;
+  }
+
+  .segmented {
+    padding: 3px;
+    gap: 3px;
+  }
+
+  /* Three stepper rows sit in the first group, so their height is the single
+     biggest lever left on how tall the whole grid is. */
+  .stepper {
+    min-width: 96px;
+    height: 32px;
+    grid-template-columns: 27px minmax(30px, auto) 27px;
+  }
+
+  .stepper button {
+    width: 27px;
+    height: 26px;
+    font-size: 0.86rem;
+  }
+
+  .stepper output {
+    font-size: 0.76rem;
+  }
+
+  .field-row {
+    min-height: 0;
   }
 
   .launch-button {

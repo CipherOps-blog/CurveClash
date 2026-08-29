@@ -230,15 +230,29 @@ export function parseEquation(source, mathLib = globalThis.math, options = {}) {
 }
 
 /** Produce KaTeX-ready LaTeX without introducing a KaTeX dependency here. */
-export function equationToLatex(equationOrSource, mathLib = globalThis.math) {
+/**
+ * Render an equation for display.
+ *
+ * `options.significantDigits` rounds the numbers on the way to LaTeX, for
+ * screens where a curve is being read rather than reproduced: a bot's fitted
+ * coefficients carry ten digits, and `-9.098564556556x` tells a player far
+ * less about the shot than `-9.1x` does. The rounding is applied to a copy of
+ * the syntax tree, so it never reaches the compiled function that is actually
+ * fired — and when it changes anything the relation is rendered as `≈`, so a
+ * displayed curve never claims to be exact when it is not.
+ */
+export function equationToLatex(equationOrSource, mathLib = globalThis.math, options = {}) {
   const equation = typeof equationOrSource === "string"
     ? compileEquation(equationOrSource, mathLib)
     : equationOrSource;
   if (!equation || equation.kind === "null") return "\\varnothing";
 
   if (equation.kind === "cartesian") {
-    const right = equation.node?.toTex ? equation.node.toTex({ parenthesis: "keep" }) : equation.expression;
-    return `f\\left(x\\right) = ${right}`;
+    const rounded = roundNodeForDisplay(equation.node, options.significantDigits, mathLib);
+    const right = rounded.node?.toTex
+      ? rounded.node.toTex({ parenthesis: "keep" })
+      : equation.expression;
+    return `f\\left(x\\right) ${rounded.changed ? "\\approx" : "="} ${right}`;
   }
 
   // Preserve the equality the player entered rather than rendering the
@@ -255,6 +269,34 @@ export function equationToLatex(equationOrSource, mathLib = globalThis.math) {
     }
   }
   return display;
+}
+
+/**
+ * Copy a syntax tree with every number reduced to `digits` significant
+ * figures. Significant figures rather than decimal places because the
+ * coefficients here span several orders of magnitude — a parabola's leading
+ * term is a fraction of a pixel while a cubic's normalising divisor is tens
+ * of them, and a fixed number of decimals would flatten one to nothing while
+ * leaving the other just as long as before.
+ */
+function roundNodeForDisplay(node, digits, mathLib) {
+  const places = Math.floor(Number(digits));
+  if (!node?.transform || !(places >= 1) || typeof mathLib?.ConstantNode !== "function") {
+    return { node, changed: false };
+  }
+  let changed = false;
+  const rounded = node.transform((current) => {
+    if (current.type !== "ConstantNode") return current;
+    const value = toFiniteNumber(current.value);
+    if (!Number.isFinite(value) || value === 0) return current;
+    // toPrecision never collapses a non-zero to zero, so a genuinely tiny
+    // coefficient keeps its magnitude instead of vanishing from the curve.
+    const approximation = Number(value.toPrecision(places));
+    if (approximation === value) return current;
+    changed = true;
+    return new mathLib.ConstantNode(approximation);
+  });
+  return { node: rounded, changed };
 }
 
 function toFiniteNumber(value) {

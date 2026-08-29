@@ -32,6 +32,13 @@ const MIN_CRATER_RADIUS = 12;
 // runs into. Contacts along the lit edge are merged onto a grid this coarse
 // and each carves a hole of this radius, which overlaps enough to melt a
 // continuous channel out of the wall face the beam swept.
+// Significant figures for a curve that is being read rather than retyped: a
+// bot's fitted coefficients run to ten digits, which tells a player nothing
+// about the shape of the shot. Two carries the shape and nothing more — and
+// counting significant figures rather than decimal places is what keeps a
+// coefficient like 0.00071 from rounding away to nothing. Only the display is
+// rounded — see equationToLatex — never the function that actually fires.
+const REVEALED_EQUATION_DIGITS = 2;
 const BEAM_SCORCH_SPACING = 9;
 const BEAM_SCORCH_RADIUS = 11;
 const POWERUP_PICKUP_RADIUS = 13;
@@ -133,23 +140,11 @@ class CurveClashGame {
       this.startGame(config);
     });
 
-    $$("[data-step]", this.dom.configForm).forEach((button) => {
-      button.addEventListener("click", () => {
-        const next = Math.max(1, Number(this.dom.botCount.value) + Number(button.dataset.step));
-        this.dom.botCount.value = String(next);
-        this.dom.botCountOutput.value = String(next);
-      });
-    });
+    $$("[data-step]", this.dom.configForm).forEach((button) => this.bindStepper(button));
 
-    this.dom.botCount.addEventListener("input", () => {
-      const count = Math.max(1, Math.floor(Number(this.dom.botCount.value)) || 1);
-      this.dom.botCount.value = String(count);
-      this.dom.botCountOutput.value = String(count);
-    });
-
-    this.dom.difficulty.addEventListener("input", () => {
-      this.dom.difficultyOutput.value = `${this.dom.difficulty.value}%`;
-    });
+    for (const input of [this.dom.botCount, this.dom.difficulty]) {
+      input.addEventListener("input", () => this.syncConfigurationControls());
+    }
     $$("input[name='peaceful']", this.dom.configForm).forEach((input) => {
       input.addEventListener("change", () => this.syncConfigurationControls());
     });
@@ -305,6 +300,65 @@ class CurveClashGame {
     this.state?.field?.rebuildVisual(isDark);
   }
 
+  /**
+   * Wire one +/- button. A tap steps once; holding it down keeps stepping,
+   * and speeds up the longer it is held, so a range as wide as bot accuracy
+   * can be crossed without a hundred taps. Keyboard activation still arrives
+   * as a click with no pointer behind it (detail 0), which is the one case
+   * the pointer handler below must not also serve.
+   */
+  bindStepper(button) {
+    const input = $(`#${button.dataset.target}`, this.dom.configForm);
+    if (!input) return;
+    const amount = Number(button.dataset.step) || 0;
+    let timer = null;
+
+    const stop = () => {
+      clearTimeout(timer);
+      timer = null;
+    };
+    const repeat = (delay) => {
+      timer = setTimeout(() => {
+        if (button.disabled) return stop();
+        this.stepInput(input, amount);
+        // Ease from a deliberate first repeat into a fast scrub, quickly
+        // enough that a hold crosses the whole 0-100 accuracy range in a
+        // couple of seconds rather than needing a hundred taps.
+        repeat(Math.max(25, delay * 0.62));
+      }, delay);
+    };
+
+    button.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || button.disabled) return;
+      this.stepInput(input, amount);
+      repeat(340);
+      // Keep the press on this button even if the finger drifts off it. This
+      // comes last, and tolerates refusal, because not every pointer can be
+      // captured and being told so must not cost the step above.
+      try {
+        button.setPointerCapture(event.pointerId);
+      } catch {
+        // Without capture the press simply ends when the pointer leaves.
+      }
+    });
+    for (const event of ["pointerup", "pointercancel", "pointerleave", "blur"]) {
+      button.addEventListener(event, stop);
+    }
+    button.addEventListener("click", (event) => {
+      if (event.detail === 0) this.stepInput(input, amount);
+    });
+  }
+
+  /** Move a numeric input by `amount`, held inside its own min/max. */
+  stepInput(input, amount) {
+    const minimum = Number(input.min === "" ? -Infinity : input.min);
+    const maximum = Number(input.max === "" ? Infinity : input.max);
+    const next = clamp(Math.round(Number(input.value) || 0) + amount, minimum, maximum);
+    if (String(next) === input.value) return;
+    input.value = String(next);
+    this.syncConfigurationControls();
+  }
+
   syncConfigurationControls() {
     const peaceful = $("input[name='peaceful']:checked", this.dom.configForm)?.value === "true";
     this.dom.difficulty.disabled = peaceful;
@@ -313,8 +367,15 @@ class CurveClashGame {
     this.dom.behaviorHelp.textContent = peaceful
       ? "Bots never fire. They stay on the map as obstacles and as targets you can still eliminate."
       : "Each bot randomly targets another survivor, human or bot.";
-    this.dom.botCountOutput.value = this.dom.botCount.value;
-    this.dom.difficultyOutput.value = `${this.dom.difficulty.value}%`;
+    const botCount = Math.max(1, Math.floor(Number(this.dom.botCount.value)) || 1);
+    if (this.dom.botCount.value !== String(botCount)) this.dom.botCount.value = String(botCount);
+    this.dom.botCountOutput.value = String(botCount);
+    const difficulty = Math.round(clamp(Number(this.dom.difficulty.value) || 0, 0, 100));
+    if (this.dom.difficulty.value !== String(difficulty)) this.dom.difficulty.value = String(difficulty);
+    this.dom.difficultyOutput.value = `${difficulty}%`;
+    for (const button of $$("[data-step][data-target='difficulty']", this.dom.configForm)) {
+      button.disabled = peaceful;
+    }
   }
 
   readConfiguration() {
@@ -1045,7 +1106,7 @@ class CurveClashGame {
     header.append(name, type);
     const equation = document.createElement("div");
     equation.className = "reveal-equation";
-    if (player.parsed) this.renderLatex(equation, equationToLatex(player.parsed, window.math));
+    if (player.parsed) this.renderLatex(equation, this.displayLatex(player.parsed));
     else equation.textContent = "No equation — null shot";
     item.append(header, equation);
     return item;
@@ -1055,9 +1116,16 @@ class CurveClashGame {
   buildEquationNode(player) {
     const equation = document.createElement("div");
     equation.className = "equation-latex";
-    if (player.parsed) this.renderLatex(equation, equationToLatex(player.parsed, window.math));
+    if (player.parsed) this.renderLatex(equation, this.displayLatex(player.parsed));
     else equation.textContent = "∅ Null shot";
     return equation;
+  }
+
+  /** Someone else's curve, rounded to be read at a glance. The live preview
+   * of your own input deliberately does not go through this: there you want
+   * back exactly what you typed. */
+  displayLatex(parsed) {
+    return equationToLatex(parsed, window.math, { significantDigits: REVEALED_EQUATION_DIGITS });
   }
 
   async runSimulation(version = this.runtimeVersion) {
@@ -1864,7 +1932,7 @@ class CurveClashGame {
     const equation = document.createElement("div");
     equation.className = "equation-latex";
     try {
-      this.renderLatex(equation, equationToLatex(parseEquation(shot.equation, window.math), window.math));
+      this.renderLatex(equation, this.displayLatex(parseEquation(shot.equation, window.math)));
     } catch {
       equation.textContent = shot.equation || "∅  Null shot";
     }
