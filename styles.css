@@ -3914,7 +3914,7 @@ body.sidebar-hidden .game-layout {
    player count. */
 @media (orientation: landscape) and (max-height: 500px) {
   :root {
-    --header-height: 46px;
+    --header-height: 40px;
   }
 
   /* A narrow-width breakpoint below turns the whole page scrollable for a
@@ -3949,60 +3949,98 @@ body.sidebar-hidden .game-layout {
        one explicit, bounded row is what makes canvas-wrap and the sidebar
        actually respect the space this short viewport has to give them. */
     grid-template-rows: minmax(0, 1fr);
-    padding: 8px;
-    gap: 8px;
+    padding: 5px;
+    gap: 5px;
   }
 
+  /* A landscape phone is far wider than it is tall, and the map is 5:3 — so
+     the arena is always limited by height, and stacking the dock underneath
+     spends the scarce dimension while leaving half the width empty. Standing
+     the dock up beside the arena instead spends the plentiful one: the map
+     gets the full column height and grows by about half again. */
   .game-main,
   .game-stage {
+    display: grid;
     min-height: 0;
+    grid-template-columns: minmax(0, 1fr) clamp(168px, 23vw, 216px);
+    grid-template-rows: minmax(0, 1fr);
     flex: 1 1 auto;
+    gap: 5px;
   }
 
   #canvas-wrap {
-    /* Low enough that the arena yields rather than pushing the dock off the
-       bottom on the shortest landscape viewports; it takes every pixel the
-       dock doesn't need above this. */
-    min-height: 96px;
+    min-height: 0;
   }
 
+  /* Standing beside the arena, the dock is a narrow column: everything
+     stacks, and the title goes because the topbar already names the phase.
+     The column is taller than the controls need, so the curve preview earns
+     its place back here rather than being cut for height as before. */
   .equation-dock {
     max-height: none;
-    padding: 7px 10px;
-    gap: 4px;
-  }
-
-  /* The dock is the one block competing with the arena for height, so its
-     heading collapses to a single compact line: the mode sits inline with the
-     title instead of stacked above it. */
-  .dock-heading {
-    align-items: center;
-    gap: 8px;
+    align-content: start;
+    padding: 7px;
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    gap: 6px;
   }
 
   .dock-heading > div {
-    display: flex;
-    min-width: 0;
-    align-items: baseline;
-    gap: 7px;
-  }
-
-  .dock-heading .eyebrow {
-    margin: 0;
-    font-size: 0.55rem;
-  }
-
-  .dock-heading h2 {
-    font-size: 0.82rem;
+    display: none;
   }
 
   .equation-dock .chip-button {
+    width: 100%;
     min-height: 30px;
     padding: 4px 8px;
   }
 
+  #equation-form {
+    display: grid;
+    gap: 6px;
+  }
+
+  /* f(x) = [input] on one line, the button on its own beneath it, so the
+     input keeps nearly the column's full width to type into. */
+  .equation-entry {
+    grid-template-columns: 38px 8px minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .prompt-symbol {
+    width: 38px;
+    height: 36px;
+    font-size: 0.72rem;
+  }
+
+  #equation-dock #validate-btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    grid-column: 1 / -1;
+    padding-inline: 8px;
+  }
+
+  .input-feedback {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "preview"
+      "error"
+      "help";
+    gap: 4px;
+  }
+
+  .input-feedback #latex-preview {
+    min-height: 34px;
+  }
+
+  /* Standing the dock up frees more height than the controls need, so the
+     rules text comes back rather than being cut as it was when the dock was
+     a bar across the bottom. */
   #equation-help {
-    display: none;
+    display: block;
+    font-size: 0.58rem;
+    line-height: 1.4;
   }
 
   /* Two cards, stacked, each taking a fixed share of a column that is exactly

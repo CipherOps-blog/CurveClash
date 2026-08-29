@@ -36,6 +36,10 @@ const BEAM_SCORCH_SPACING = 9;
 const BEAM_SCORCH_RADIUS = 11;
 const POWERUP_PICKUP_RADIUS = 13;
 const SCORE_FORMATTER = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+// The one breakpoint the arena has to fight for room in. Portrait is already
+// blocked by the rotate overlay, so this is a phone held sideways — the same
+// query the compact game layout is written against in styles.css.
+const PHONE_LAYOUT = window.matchMedia("(orientation: landscape) and (max-height: 500px)");
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -231,13 +235,17 @@ class CurveClashGame {
   bindSidebarToggle() {
     const button = this.dom.sidebarToggle;
     if (!button) return;
-    let hidden = false;
+    let saved = null;
     try {
-      hidden = localStorage.getItem("curve-clash-sidebar-hidden") === "true";
+      saved = localStorage.getItem("curve-clash-sidebar-hidden");
     } catch {
       // Storage can be unavailable in privacy-focused browser contexts.
     }
-    this.setSidebarHidden(hidden);
+    // A phone starts with the panel away, because there the sidebar's column
+    // is the difference between a readable arena and a postage stamp. Anywhere
+    // with room to spare starts with it open, and an explicit choice — the
+    // only thing that ever gets stored — outranks both.
+    this.setSidebarHidden(saved === null ? PHONE_LAYOUT.matches : saved === "true");
     button.addEventListener("click", () => {
       const next = !document.body.classList.contains("sidebar-hidden");
       this.setSidebarHidden(next);
@@ -1946,8 +1954,10 @@ class CurveClashGame {
     // larger than the wrapper itself — the canvas then overflowed and the
     // arena grew its own scrollbars. The wrapper's CSS min-height is what
     // guarantees a usable arena; this only has to fit inside whatever that
-    // leaves, and the inset shrinks with it so a small arena is not all margin.
-    const inset = Math.min(28, this.dom.canvasWrap.clientHeight * 0.12);
+    // leaves. The breathing room around the map is a proportion rather than a
+    // flat 28px, because on a phone the map is always limited by height and a
+    // fixed inset there is a tenth of the arena spent on margin.
+    const inset = Math.min(28, this.dom.canvasWrap.clientHeight * 0.06);
     const availableWidth = Math.max(1, this.dom.canvasWrap.clientWidth - inset);
     const availableHeight = Math.max(1, this.dom.canvasWrap.clientHeight - inset);
     const scale = Math.min(1, availableWidth / this.state.width, availableHeight / this.state.height);
