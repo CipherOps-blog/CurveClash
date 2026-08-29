@@ -80,6 +80,7 @@ class CurveClashGame {
       equationError: $("#equation-error"),
       inputModeLabel: $("#input-mode-label"),
       examplesToggle: $("#examples-toggle"),
+      helpToggle: $("#help-toggle"),
       examplesPanel: $("#examples-panel"),
       revealModal: $("#reveal-modal"),
       modalEquations: $("#modal-equations"),
@@ -170,6 +171,14 @@ class CurveClashGame {
       const hidden = this.dom.examplesPanel.classList.toggle("is-hidden");
       this.dom.examplesToggle.setAttribute("aria-expanded", String(!hidden));
     });
+    // The rules are reference material, not something to read every turn, so
+    // they stay folded away behind the info chip until asked for.
+    this.dom.helpToggle.addEventListener("click", () => {
+      const shown = this.dom.equationHelp.hidden;
+      this.dom.equationHelp.hidden = !shown;
+      this.dom.helpToggle.setAttribute("aria-expanded", String(shown));
+    });
+
     $$('[data-equation]', this.dom.examplesPanel).forEach((button) => {
       button.addEventListener("click", () => {
         this.dom.equationInput.value = button.dataset.equation;
@@ -184,6 +193,8 @@ class CurveClashGame {
       if (event.key === "Escape") {
         this.dom.examplesPanel.classList.add("is-hidden");
         this.dom.examplesToggle.setAttribute("aria-expanded", "false");
+        this.dom.equationHelp.hidden = true;
+        this.dom.helpToggle.setAttribute("aria-expanded", "false");
       }
     });
 

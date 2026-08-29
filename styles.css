@@ -1858,9 +1858,13 @@ input[type="range"]::-moz-range-thumb {
   width: min(680px, 100%);
 }
 
+/* Fills whatever row the card gives it and scrolls there, rather than
+   capping itself at a share of the viewport and leaving the card with a gap
+   underneath on tall screens. */
 .reveal-list {
   display: grid;
-  max-height: min(54vh, 460px);
+  min-height: 0;
+  align-content: start;
   overflow-y: auto;
   padding: 3px;
   margin: 0;
@@ -3202,6 +3206,35 @@ input[type="range"]::-moz-range-thumb {
   gap: 12px;
 }
 
+.dock-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A round chip, so it reads as an info affordance next to the wider
+   text button rather than as a second action of equal weight. */
+.chip-button.info-chip {
+  width: 30px;
+  flex: 0 0 auto;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-style: italic;
+  font-weight: 850;
+}
+
+.chip-button.info-chip[aria-expanded="true"] {
+  color: var(--lavender-strong);
+  border-color: color-mix(in srgb, var(--lavender-strong), transparent 55%);
+  background: var(--lavender-soft);
+}
+
 .dock-heading .eyebrow {
   margin-bottom: 3px;
   font-size: 0.61rem;
@@ -3257,10 +3290,34 @@ input[type="range"]::-moz-range-thumb {
   gap: 7px;
 }
 
+/* The validate button is a sibling of the field and the feedback rather than
+   part of the entry row, so a narrow layout can slot the curve preview
+   between the two. Here there is width to spare, so grid areas put it back
+   on the field's own line, which is how it has always read. */
+#equation-dock #equation-form {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "entry button"
+    "feedback feedback";
+  align-items: center;
+}
+
+#equation-dock .equation-entry {
+  grid-area: entry;
+}
+
+#equation-dock .input-feedback {
+  grid-area: feedback;
+}
+
+#equation-dock #validate-btn {
+  grid-area: button;
+}
+
 .equation-entry {
   display: grid;
   min-width: 0;
-  grid-template-columns: 50px 12px minmax(0, 1fr) auto;
+  grid-template-columns: 50px 12px minmax(0, 1fr);
   align-items: center;
   gap: 7px;
 }
@@ -3526,16 +3583,20 @@ body.sidebar-hidden .game-layout {
   display: none;
 }
 
+/* The card sizes to the viewport and never scrolls itself: its rows are
+   pinned so the equation list is the one part that absorbs the slack, and
+   the list scrolls inside it. Letting the whole card scroll instead pushed
+   the countdown — the one thing telling you the round is about to start —
+   off the bottom as soon as there were more than a few players. */
 .modal-card.reveal-card {
   display: grid;
   width: min(650px, 100%);
   max-height: min(780px, calc(100dvh - 48px));
-  overflow-y: auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
   place-self: center;
   gap: 8px;
   text-align: center;
-  scrollbar-color: var(--line-strong) transparent;
-  scrollbar-width: thin;
 }
 
 .modal-card.reveal-card > .eyebrow {
@@ -3560,7 +3621,8 @@ body.sidebar-hidden .game-layout {
 .modal-equations {
   display: grid;
   min-width: 0;
-  max-height: min(47vh, 390px);
+  min-height: 0;
+  align-content: start;
   overflow-y: auto;
   padding: 3px;
   gap: 8px;
@@ -3917,6 +3979,105 @@ body.sidebar-hidden .game-layout {
     --header-height: 40px;
   }
 
+  /* Setup screen ----------------------------------------------------
+     Stacked into one or two columns this runs to well over twice the height
+     a sideways phone has, and the width-driven breakpoints above are what
+     stack it — they assume a portrait phone. Here there is width to spend
+     instead: all three groups sit side by side, the wordmark shrinks to a
+     single line, and the footer goes, which together is the difference
+     between scrolling the page and not. */
+  #config-screen,
+  .config-screen {
+    min-height: 100dvh;
+    padding: 8px 10px;
+    place-items: center;
+  }
+
+  #config-screen > .config-card,
+  .config-card {
+    width: min(100%, 1100px);
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+    padding: 11px 14px;
+    gap: 6px;
+    scrollbar-color: var(--line-strong) transparent;
+    scrollbar-width: thin;
+  }
+
+  .brand-block {
+    align-items: center;
+    flex-direction: row;
+    gap: 9px;
+    padding-bottom: 0;
+    margin-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .brand-block .brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+  }
+
+  .brand-block h1 {
+    margin: 0;
+    font-size: 1.15rem;
+  }
+
+  .brand-block p,
+  .config-footer {
+    display: none;
+  }
+
+  .config-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .config-section,
+  .config-section.wide-section {
+    padding: 9px 10px;
+    grid-column: auto;
+    gap: 7px;
+  }
+
+  .config-section legend {
+    margin-bottom: 2px;
+    font-size: 0.6rem;
+  }
+
+  .round-rules-grid {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .field-row small,
+  #behavior-help,
+  .mode-card small {
+    display: none;
+  }
+
+  /* The icon is decoration the narrow column cannot afford: without it the
+     mode name fits on one line and the two cards stay the same height. */
+  .mode-card {
+    padding: 7px 8px;
+    gap: 7px;
+  }
+
+  .mode-icon {
+    display: none;
+  }
+
+  .segmented label span,
+  .mode-card strong {
+    font-size: 0.66rem;
+  }
+
+  .launch-button {
+    min-height: 42px;
+    padding: 8px 16px;
+  }
+
   /* A narrow-width breakpoint below turns the whole page scrollable for a
      portrait phone (more height than width to spare there). A landscape
      phone can be just as narrow, so it matches that rule too — reassert the
@@ -3985,23 +4146,31 @@ body.sidebar-hidden .game-layout {
     gap: 6px;
   }
 
-  .dock-heading > div {
+  .dock-title {
     display: none;
   }
 
-  .equation-dock .chip-button {
-    width: 100%;
+  /* The text chip takes whatever the column has left rather than a flat
+     100%, which would claim the full width and push the round info chip out
+     of the row entirely. */
+  .equation-dock .chip-button:not(.info-chip) {
+    min-width: 0;
+    flex: 1 1 auto;
     min-height: 30px;
     padding: 4px 8px;
   }
 
-  #equation-form {
-    display: grid;
+  /* One column: the field, then the curve preview, then the button — so what
+     you are about to fire reads directly above the control that fires it. */
+  #equation-dock #equation-form {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "entry"
+      "feedback"
+      "button";
     gap: 6px;
   }
 
-  /* f(x) = [input] on one line, the button on its own beneath it, so the
-     input keeps nearly the column's full width to type into. */
   .equation-entry {
     grid-template-columns: 38px 8px minmax(0, 1fr);
     gap: 4px;
@@ -4017,8 +4186,69 @@ body.sidebar-hidden .game-layout {
     width: 100%;
     min-width: 0;
     min-height: 38px;
-    grid-column: 1 / -1;
     padding-inline: 8px;
+  }
+
+  .dock-actions {
+    width: 100%;
+  }
+
+  /* Reveal dialog ---------------------------------------------------
+     The heading block costs more than the list it introduces is worth on a
+     screen this short, and the topbar already says the phase — so the
+     eyebrow and the explanatory line go, and the curves get that room. */
+  .modal-card.reveal-card {
+    max-height: calc(100dvh - 16px);
+    padding: 12px 14px;
+    gap: 5px;
+  }
+
+  .modal-card.reveal-card > .eyebrow,
+  .modal-card.reveal-card > p:not(.eyebrow) {
+    display: none;
+  }
+
+  .modal-card.reveal-card > h2 {
+    font-size: 1.15rem;
+  }
+
+  .modal-equations,
+  .reveal-list {
+    gap: 5px;
+  }
+
+  /* One line per player — name beside the curve rather than above it — which
+     is what gets a full table of shooters into the dialog without scrolling
+     it. The Human/Bot tag goes: the roster already says which is which. */
+  .reveal-item {
+    align-items: center;
+    grid-template-columns: minmax(64px, auto) minmax(0, 1fr);
+    padding: 5px 9px;
+    gap: 9px;
+    text-align: left;
+  }
+
+  .reveal-player {
+    font-size: 0.7rem;
+  }
+
+  .reveal-player small {
+    display: none;
+  }
+
+  .reveal-equation {
+    padding: 0;
+    font-size: 0.78rem;
+  }
+
+  .modal-equations > div {
+    padding: 6px 9px;
+    gap: 2px;
+  }
+
+  .reveal-countdown {
+    min-height: 30px;
+    font-size: 0.7rem;
   }
 
   .input-feedback {
@@ -4034,11 +4264,7 @@ body.sidebar-hidden .game-layout {
     min-height: 34px;
   }
 
-  /* Standing the dock up frees more height than the controls need, so the
-     rules text comes back rather than being cut as it was when the dock was
-     a bar across the bottom. */
   #equation-help {
-    display: block;
     font-size: 0.58rem;
     line-height: 1.4;
   }

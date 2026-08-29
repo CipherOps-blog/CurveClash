@@ -214,11 +214,22 @@
 
             <section id="equation-dock" class="equation-dock" aria-labelledby="equation-heading">
               <div class="dock-heading">
-                <div>
+                <div class="dock-title">
                   <p class="eyebrow" id="input-mode-label">Live visualizer</p>
                   <h2 id="equation-heading">Choose your curve</h2>
                 </div>
-                <button id="examples-toggle" class="chip-button" type="button" aria-expanded="false" aria-controls="examples-panel">Equation ideas <span>⌄</span></button>
+                <div class="dock-actions">
+                  <button id="examples-toggle" class="chip-button" type="button" aria-expanded="false" aria-controls="examples-panel">Equation ideas <span>⌄</span></button>
+                  <button
+                    id="help-toggle"
+                    class="chip-button info-chip"
+                    type="button"
+                    aria-expanded="false"
+                    aria-controls="equation-help"
+                    aria-label="How to write your equation"
+                    title="How to write your equation"
+                  >i</button>
+                </div>
               </div>
               <div id="examples-panel" class="examples-panel is-hidden">
                 <button type="button" data-equation="0.5 * x">Straight line</button>
@@ -243,15 +254,18 @@
                     aria-invalid="false"
                     aria-describedby="equation-help equation-error"
                   />
-                  <button id="validate-btn" class="primary-button validate-button" type="submit">Validate shot</button>
                 </div>
+                <!-- The preview sits between the field and the button so the
+                     curve you are about to commit reads directly above the
+                     control that commits it. -->
                 <div class="input-feedback">
                   <div id="latex-preview" class="latex-preview" aria-live="polite">
                     <span class="preview-placeholder">Your equation will appear here</span>
                   </div>
-                  <p id="equation-help">Type only the expression after f(x) =, in units of 50 px. It must pass through y = 0 at x = 0; ln() and exp() are available, min(), max() and abs() are not.</p>
+                  <p id="equation-help" hidden>Type only the expression after f(x) =, in units of 50 px. It must pass through y = 0 at x = 0; ln() and exp() are available, min(), max() and abs() are not.</p>
                   <p id="equation-error" class="equation-error" role="alert"></p>
                 </div>
+                <button id="validate-btn" class="primary-button validate-button" type="submit">Validate shot</button>
               </form>
             </section>
           </section>
