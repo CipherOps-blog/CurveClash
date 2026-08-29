@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as math from 'mathjs';
 
-import { parseEquation, equationToLatex } from '../src/equation-engine.js';
+import { buildCurvePlan, equationToLatex, makeBounds, parseEquation } from '../src/equation-engine.js';
 
 const BOT_CUBIC = '0.1749178443 * x + 4.614099836 * (x / (13.90836547))';
 
@@ -47,11 +47,35 @@ test('two significant figures is as long as a coefficient gets', () => {
 });
 
 test('display rounding never reaches the function that is fired', () => {
-  const parsed = parseEquation('0.06908110911 * x', math);
-  const before = parsed.evaluateLocal(100, 0);
+  // The shot keeps every digit the author gave it; only the reveal panel
+  // shortens them. Rendering must therefore leave the compiled function, the
+  // syntax tree it came from, and the trajectory it produces untouched.
+  const source = '0.06908110911 * x + 0.0007123456 * x^2';
+  const parsed = parseEquation(source, math);
+  const origin = { x: 200, y: 400 };
+  const bounds = makeBounds(1200, 720);
+  const trace = () => buildCurvePlan(parsed, origin, bounds, null, { math })
+    .paths[0].map((point) => `${point.x},${point.y}`).join('|');
+
+  const values = [1, 37, 113, 400].map((x) => parsed.evaluateLocal(x, 0));
+  const tree = parsed.node.toString();
+  const path = trace();
+
   equationToLatex(parsed, math, { significantDigits: 2 });
-  assert.equal(parsed.evaluateLocal(100, 0), before);
-  assert.equal(before, 6.908110911);
+
+  assert.deepEqual([1, 37, 113, 400].map((x) => parsed.evaluateLocal(x, 0)), values);
+  assert.equal(parsed.node.toString(), tree, 'the syntax tree was mutated');
+  assert.equal(parsed.expression, source);
+  assert.equal(trace(), path, 'the traced trajectory changed');
+  assert.equal(values[0], 0.069095356022);
+});
+
+test('firing the shortened numbers would miss, which is why it is display-only', () => {
+  // Guards the premise: if the rounding ever leaked into the shot, this is
+  // the error it would introduce, so the assertion above is worth having.
+  const exact = parseEquation('0.06908110911 * x + 0.0007123456 * x^2', math);
+  const shown = parseEquation('0.069 * x + 0.00071 * x^2', math);
+  assert.notEqual(shown.evaluateLocal(400, 0), exact.evaluateLocal(400, 0));
 });
 
 test('omitting the option renders exactly as before', () => {

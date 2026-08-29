@@ -3950,24 +3950,51 @@ body.sidebar-hidden .game-layout {
     gap: 5px;
   }
 
+  /* One grid for the groups and the launch button together, rather than a
+     button on a row of its own beneath them. Round rules is the shortest of
+     the three columns, so the button drops into the space that column was
+     already wasting and the form gets no taller for it — a row underneath
+     would have cost its full height across all three columns.
+
+     .config-grid is dissolved with display: contents so its three groups
+     become items of this grid directly; a nested grid could not have let the
+     button share a column with one of them. */
   .config-form {
-    display: flex;
+    display: grid;
     min-height: 0;
-    flex: 1 1 auto;
-    flex-direction: column;
-    gap: 6px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 6px 8px;
   }
 
   .config-grid {
+    display: contents;
+  }
+
+  /* The two taller groups run the full height; Round rules stops above the
+     button. Each scrolls on its own if a viewport is short enough to need
+     it, which keeps the button itself always in view. */
+  .config-section:nth-of-type(1) {
+    grid-area: 1 / 1 / -1 / 2;
+  }
+
+  .config-section:nth-of-type(2) {
+    grid-area: 1 / 2 / -1 / 3;
+  }
+
+  .config-section.wide-section {
+    grid-area: 1 / 3 / 2 / 4;
+  }
+
+  .config-section {
     min-height: 0;
-    flex: 1 1 auto;
     overflow-y: auto;
     scrollbar-color: var(--line-strong) transparent;
     scrollbar-width: thin;
   }
 
   .launch-button {
-    flex: 0 0 auto;
+    grid-area: 2 / 3 / 3 / 4;
   }
 
   .brand-block {
@@ -3993,11 +4020,6 @@ body.sidebar-hidden .game-layout {
   .brand-block p,
   .config-footer {
     display: none;
-  }
-
-  .config-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
   }
 
   .config-section,
@@ -4042,7 +4064,8 @@ body.sidebar-hidden .game-layout {
      group in the row. */
   .mode-card {
     min-height: 0;
-    padding: 6px 7px;
+    justify-content: center;
+    padding: 6px 4px;
     gap: 7px;
   }
 
@@ -4059,9 +4082,12 @@ body.sidebar-hidden .game-layout {
     padding: 4px 5px;
   }
 
-  .segmented label span,
-  .mode-card strong {
+  .segmented label span {
     font-size: 0.6rem;
+  }
+
+  .mode-card strong {
+    font-size: 0.55rem;
   }
 
   /* Labels hold one line and give the rest of the row to the control, which
