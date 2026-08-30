@@ -319,7 +319,6 @@ class CurveClashGame {
     };
     const repeat = (delay) => {
       timer = setTimeout(() => {
-        if (button.disabled) return stop();
         this.stepInput(input, amount);
         // Ease from a deliberate first repeat into a fast scrub, quickly
         // enough that a hold crosses the whole 0-100 accuracy range in a
@@ -329,7 +328,7 @@ class CurveClashGame {
     };
 
     button.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0 || button.disabled) return;
+      if (event.button !== 0) return;
       this.stepInput(input, amount);
       repeat(340);
       // Keep the press on this button even if the finger drifts off it. This
@@ -361,11 +360,11 @@ class CurveClashGame {
 
   syncConfigurationControls() {
     const peaceful = $("input[name='peaceful']:checked", this.dom.configForm)?.value === "true";
-    this.dom.difficulty.disabled = peaceful;
-    this.dom.difficultyField.classList.toggle("is-disabled", peaceful);
-    this.dom.difficultyField.setAttribute("aria-disabled", String(peaceful));
+    // Accuracy has nothing to act on while the bots are peaceful, but the
+    // control stays live and legible rather than greying out: the sentence
+    // below says why it will not matter, which a dimmed box never could.
     this.dom.behaviorHelp.textContent = peaceful
-      ? "Bots never fire. They stay on the map as obstacles and as targets you can still eliminate."
+      ? "Bots never fire, so their accuracy is unused. They stay on the map as obstacles and as targets you can still eliminate."
       : "Each bot randomly targets another survivor, human or bot.";
     const botCount = Math.max(1, Math.floor(Number(this.dom.botCount.value)) || 1);
     if (this.dom.botCount.value !== String(botCount)) this.dom.botCount.value = String(botCount);
@@ -373,9 +372,6 @@ class CurveClashGame {
     const difficulty = Math.round(clamp(Number(this.dom.difficulty.value) || 0, 0, 100));
     if (this.dom.difficulty.value !== String(difficulty)) this.dom.difficulty.value = String(difficulty);
     this.dom.difficultyOutput.value = `${difficulty}%`;
-    for (const button of $$("[data-step][data-target='difficulty']", this.dom.configForm)) {
-      button.disabled = peaceful;
-    }
   }
 
   readConfiguration() {
@@ -605,7 +601,6 @@ class CurveClashGame {
     if (!livingHumans.length) {
       this.dom.equationInput.disabled = true;
       this.dom.equationInput.placeholder = "Spectating the remaining bot battle";
-      this.dom.validateButton.disabled = true;
       this.dom.validateButton.textContent = "Spectating";
       this.dom.timer.textContent = "00:01";
       await delay(this.reducedMotion ? 250 : 900);
@@ -903,7 +898,6 @@ class CurveClashGame {
       : "Spectating the remaining bot battle";
     this.dom.equationInput.classList.remove("is-valid", "is-invalid");
     this.dom.equationInput.setAttribute("aria-invalid", "false");
-    this.dom.validateButton.disabled = !canInput;
     this.dom.validateButton.classList.remove("is-validated", "validated");
     this.dom.validateButton.textContent = canInput ? "Validate shot" : "Spectating";
     this.dom.equationError.textContent = "";
@@ -988,7 +982,6 @@ class CurveClashGame {
       this.dom.equationInput.classList.add("is-valid");
       this.dom.equationInput.setAttribute("aria-invalid", "false");
       this.dom.equationInput.disabled = true;
-      this.dom.validateButton.disabled = true;
       this.dom.validateButton.classList.add("is-validated");
       this.dom.validateButton.textContent = "Locked ✓";
       this.dom.equationError.textContent = "";
@@ -1043,7 +1036,6 @@ class CurveClashGame {
     clearTimeout(this.previewTimer);
     state.preview = null;
     this.dom.equationInput.disabled = true;
-    this.dom.validateButton.disabled = true;
     this.dom.validateButton.textContent = reason === "timeout" ? "Time expired" : "Locked";
 
     // A very fast human submission can beat a bot's yielded computation. The
@@ -1136,7 +1128,6 @@ class CurveClashGame {
     this.dom.phaseLabel.textContent = "Simulation";
     this.dom.timer.textContent = "—";
     this.dom.equationInput.disabled = true;
-    this.dom.validateButton.disabled = true;
     this.dom.validateButton.textContent = "Tracing…";
     this.updateAllInterface();
     await delay(this.reducedMotion ? 180 : 500);
@@ -1573,7 +1564,6 @@ class CurveClashGame {
       this.dom.endStats.append(item);
     }
     this.dom.endOverlay.classList.remove("is-hidden");
-    this.dom.replayButton.disabled = !state.replay.shots.length || state.replay.playing;
     this.updateAllInterface();
     requestAnimationFrame(() => this.dom.sameSettingsButton.focus());
   }
@@ -1676,7 +1666,6 @@ class CurveClashGame {
     state.traces = [];
     this.resetReplayEquationReveal();
     this.dom.equationInput.disabled = true;
-    this.dom.validateButton.disabled = true;
     this.dom.timer.textContent = "REPLAY";
     this.updateAllInterface();
     await delay(this.reducedMotion ? 120 : 500);

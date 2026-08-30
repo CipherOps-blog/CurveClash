@@ -2790,12 +2790,6 @@ select {
   color: var(--ink);
 }
 
-#difficulty-field.is-disabled,
-#difficulty-field[aria-disabled="true"] {
-  opacity: 0.46;
-  pointer-events: none;
-}
-
 .round-rules-grid {
   display: grid;
   min-width: 0;
