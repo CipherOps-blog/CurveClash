@@ -4029,9 +4029,27 @@ body.sidebar-hidden .game-layout {
     gap: 6px;
   }
 
+  /* One text size per group, declared on the group itself: its legend, its
+     labels, its option pills and its stepper readout all read from this and
+     nothing sets a size of its own, so a group cannot end up wearing three
+     different sizes the way it used to. The size scales with the width of
+     the phone, because how much text a group can afford is decided by how
+     wide its column is. */
+  .config-section {
+    font-size: clamp(0.68rem, 1.25vw, 0.78rem);
+  }
+
+  .config-section legend,
+  .config-section .field-label,
+  .config-section .field-row > span:first-child strong,
+  .config-section .stepper output,
+  .config-section .segmented label > span,
+  .config-section .mode-card strong {
+    font-size: inherit;
+  }
+
   .config-section legend {
     margin-bottom: 2px;
-    font-size: 0.6rem;
   }
 
   .round-rules-grid {
@@ -4047,15 +4065,43 @@ body.sidebar-hidden .game-layout {
 
   /* Every option group puts its label beside its control rather than above
      it. Stacked, five labels cost five lines of a screen that has barely a
-     dozen; there is width to put them in instead. */
+     dozen; there is width to put them in instead.
+
+     A wrapping flex row rather than two fixed columns, so the decision is
+     made per group and per screen: the control takes whatever the label
+     leaves, until that is less than the control's own min-content, and only
+     then does it drop onto a line of its own and take the full width. No
+     width has to be guessed at, and no option is ever squeezed narrower
+     than the word inside it. */
   .field-stack {
+    display: flex;
     align-items: center;
-    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+    flex-wrap: wrap;
     gap: 4px 8px;
   }
 
   .field-stack .field-label {
+    flex: 0 0 auto;
     margin: 0;
+    /* One line: when the row runs short it is the control that moves down,
+       which reads better than a label broken over two lines. */
+    white-space: nowrap;
+  }
+
+  /* The wrap above is decided by these min-contents, and the wider layout
+     zeroes them so controls can be squeezed to fit a column. Put them back —
+     a control that reports a minimum of zero never wraps, it just spills —
+     including on the cards, whose own zeroed minimum was what let a card
+     shrink out from under the name written on it. */
+  .field-stack > .segmented,
+  .field-stack > .mode-cards {
+    min-width: auto;
+    flex: 1 1 0;
+  }
+
+  .mode-cards > label,
+  .mode-card {
+    min-width: auto;
   }
 
   /* Beside its label rather than under it, a mode card has roughly half a
@@ -4077,23 +4123,31 @@ body.sidebar-hidden .game-layout {
     white-space: nowrap;
   }
 
+  /* Equal slots while they all fit, and never narrower than the word they
+     hold. Under `minmax(0, 1fr)` a track could shrink below its label, and
+     the label — one unbreakable word, in a pill with a visible border —
+     answered by hanging outside the rounded box: "Medium" spilled over
+     "High", and "Live Visualizer" ran past the edge of its card. Flooring
+     every track at min-content spends the shortfall on making the roomier
+     options narrower, which stays inside the box. */
+  .segmented.two-up {
+    grid-template-columns: repeat(2, minmax(min-content, 1fr));
+  }
+
+  .segmented.three-up {
+    grid-template-columns: repeat(3, minmax(min-content, 1fr));
+  }
+
+  .mode-cards {
+    grid-template-columns: repeat(2, minmax(min-content, 1fr));
+  }
+
+  /* "3 min" stays on one line: left to break, a two-word option reports a
+     min-content of just its longest word, so the row would keep it beside
+     the label and stack the words instead of moving the control down. */
   .segmented label > span {
     min-height: 30px;
     padding: 4px 5px;
-  }
-
-  .segmented label span {
-    font-size: 0.6rem;
-  }
-
-  .mode-card strong {
-    font-size: 0.55rem;
-  }
-
-  /* Labels hold one line and give the rest of the row to the control, which
-     otherwise gets squeezed until its options overlap. */
-  .field-stack .field-label {
-    font-size: 0.6rem;
     white-space: nowrap;
   }
 
@@ -4105,7 +4159,7 @@ body.sidebar-hidden .game-layout {
   /* Three stepper rows sit in the first group, so their height is the single
      biggest lever left on how tall the whole grid is. */
   .stepper {
-    min-width: 96px;
+    min-width: 90px;
     height: 32px;
     grid-template-columns: 27px minmax(30px, auto) 27px;
   }
@@ -4116,12 +4170,17 @@ body.sidebar-hidden .game-layout {
     font-size: 0.86rem;
   }
 
-  .stepper output {
-    font-size: 0.76rem;
-  }
-
+  /* Same bargain as .field-stack: the name keeps the width it needs and the
+     stepper drops below it rather than the two overlapping. The narrower gap
+     is what keeps that from happening on any phone this side of 600px. */
   .field-row {
     min-height: 0;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  .field-row > span:first-child {
+    min-width: auto;
   }
 
   .launch-button {
@@ -4454,5 +4513,23 @@ body.sidebar-hidden .game-layout {
   .turn-item.has-equation .equation-latex {
     padding-left: 25px;
     font-size: 0.68rem;
+  }
+}
+
+/* Below roughly 620px a column is too narrow to hold an option row at the
+   size above even when the control takes a whole line to itself, so the text
+   steps down with the width. Losing a little size is the graceful failure
+   here; letting a word escape its pill is not. */
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 620px) {
+  .config-section {
+    font-size: clamp(0.54rem, 1.6vw, 0.68rem);
+  }
+
+  /* Half of a column this narrow is less than the word "Visualizer", which
+     cannot be broken or shrunk into it. The two cards go one above the other
+     so each gets the whole column, which is the only arrangement that holds
+     the name at all. */
+  .mode-cards {
+    grid-template-columns: 1fr;
   }
 }
