@@ -5,14 +5,34 @@
  * part of that segment lying inside terrain counted a second time. For a
  * multi-kill, increasingly valuable kills receive increasingly large integer
  * multipliers after sorting by their base value. Whoever is left standing at
- * the end collects a flat survival bonus on top.
+ * the end collects a survival bonus that grows with the length of the match.
  */
 
 const EPSILON = 1e-9;
 
-/** Flat bonus paid to the sole survivor of a match, in points and in units. */
-export const SURVIVAL_BONUS_POINTS = 1000;
-export const SURVIVAL_BONUS_UNITS = SURVIVAL_BONUS_POINTS * 100;
+/**
+ * Coefficient of the survival bonus, which is `1000 × √rounds`: a match won in
+ * a single round pays exactly this, and every longer one pays more.
+ */
+export const SURVIVAL_BONUS_COEFFICIENT = 1000;
+
+/**
+ * The bonus grows with the square root of the rounds survived rather than
+ * linearly, which keeps it in the same league as a handful of kills however
+ * long the match runs. The shape matters as much as the size: one more round
+ * is worth `500 / √rounds`, so from the second round on, waiting pays less
+ * than shooting and stretching a match out stops being a strategy.
+ */
+export function survivalBonusUnits(rounds = 1) {
+  const survived = Math.max(1, Math.floor(Number(rounds)) || 1);
+  // Rounded to whole points, unlike a kill: the bonus reads as a headline
+  // number on the results screen and has no fractional distance behind it.
+  return Math.round(SURVIVAL_BONUS_COEFFICIENT * Math.sqrt(survived)) * 100;
+}
+
+export function survivalBonusPoints(rounds = 1) {
+  return survivalBonusUnits(rounds) / 100;
+}
 
 /**
  * The one player still alive, or null when the match ended with nobody — or

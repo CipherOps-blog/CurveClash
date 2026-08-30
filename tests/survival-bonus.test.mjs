@@ -2,15 +2,35 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  SURVIVAL_BONUS_POINTS,
-  SURVIVAL_BONUS_UNITS,
+  SURVIVAL_BONUS_COEFFICIENT,
   findLastSurvivor,
-  rankPlayers
+  rankPlayers,
+  survivalBonusPoints,
+  survivalBonusUnits
 } from '../src/scoring.js';
 
-test('the bonus is 1000 points, held in the same hundredths as every score', () => {
-  assert.equal(SURVIVAL_BONUS_POINTS, 1000);
-  assert.equal(SURVIVAL_BONUS_UNITS, 100000);
+test('the bonus is 1000 × the square root of the rounds survived', () => {
+  assert.equal(SURVIVAL_BONUS_COEFFICIENT, 1000);
+  const expected = { 1: 1000, 2: 1414, 3: 1732, 4: 2000, 6: 2449, 8: 2828, 16: 4000 };
+  for (const [rounds, points] of Object.entries(expected)) {
+    assert.equal(survivalBonusPoints(Number(rounds)), points);
+    assert.equal(survivalBonusUnits(Number(rounds)), points * 100);
+  }
+});
+
+test('a match too short or too odd to count still pays one round', () => {
+  assert.equal(survivalBonusPoints(0), 1000);
+  assert.equal(survivalBonusPoints(-4), 1000);
+  assert.equal(survivalBonusPoints(undefined), 1000);
+  assert.equal(survivalBonusPoints(2.9), survivalBonusPoints(2));
+});
+
+test('stretching a match out pays less than shooting after the first round', () => {
+  for (const rounds of [2, 3, 5, 9, 20]) {
+    const marginal = survivalBonusPoints(rounds + 1) - survivalBonusPoints(rounds);
+    assert.ok(marginal > 0, `round ${rounds + 1} must still be worth something`);
+    assert.ok(marginal < 400, `round ${rounds + 1} paid ${marginal}, less than a kill expected`);
+  }
 });
 
 test('only a single survivor collects the bonus', () => {
@@ -28,9 +48,8 @@ test('the bonus can lift the last player alive over a higher-scoring corpse', ()
 
   assert.equal(rankPlayers([human, bot], turnOrder)[0].player.id, 'human');
 
-  const survivor = findLastSurvivor([human, bot]);
-  survivor.scoreUnits += SURVIVAL_BONUS_UNITS;
+  findLastSurvivor([human, bot]).scoreUnits += survivalBonusUnits(4);
   const ranking = rankPlayers([human, bot], turnOrder);
   assert.equal(ranking[0].player.id, 'bot-1');
-  assert.equal(ranking[0].player.scoreUnits, 101500);
+  assert.equal(ranking[0].player.scoreUnits, 201500);
 });

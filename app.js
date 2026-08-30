@@ -16,11 +16,12 @@ import {
   updatePowerUpExposure
 } from "./src/powerups.js";
 import {
-  SURVIVAL_BONUS_POINTS,
-  SURVIVAL_BONUS_UNITS,
+  SURVIVAL_BONUS_COEFFICIENT,
   findLastSurvivor,
   rankPlayers,
-  scoreMultiKill
+  scoreMultiKill,
+  survivalBonusPoints,
+  survivalBonusUnits
 } from "./src/scoring.js";
 
 const MAP_SIZES = {
@@ -482,6 +483,7 @@ class CurveClashGame {
         scoreUnits: 0,
         scoreHistory: [],
         survivalBonus: false,
+        survivalRounds: 0,
         shieldCharges: 0,
         hasBeam: false
       });
@@ -1524,31 +1526,37 @@ class CurveClashGame {
   }
 
   /**
-   * The last player standing pockets a flat bonus, so outliving the field is
-   * worth as much as a long shot. The flag makes it a one-time payment: a
-   * replay ends by calling finishGame a second time, and the final snapshot it
-   * restores already carries both the bonus and the flag.
+   * The last player standing pockets a bonus of 1000 × √rounds, so outliving
+   * the field is worth as much as a few long shots however long the match ran.
+   * The match ends on the turn the second-to-last player dies, so the survivor
+   * lived through every one of `state.turn` rounds. The flag makes it a
+   * one-time payment: a replay ends by calling finishGame a second time, and
+   * the final snapshot it restores already carries both the bonus and the flag.
    */
   awardSurvivalBonus() {
     const state = this.state;
     const survivor = findLastSurvivor(state?.players ?? []);
     if (!survivor || survivor.survivalBonus) return;
+    const rounds = Math.max(1, state.turn);
+    const pointUnits = survivalBonusUnits(rounds);
     survivor.survivalBonus = true;
-    survivor.scoreUnits += SURVIVAL_BONUS_UNITS;
+    survivor.survivalRounds = rounds;
+    survivor.scoreUnits += pointUnits;
     survivor.score = survivor.scoreUnits / 100;
     survivor.scoreHistory.push({
       turn: state.turn,
       survival: true,
+      rounds,
       targetId: null,
       targetName: null,
       straightDistance: 0,
       obstacleDistance: 0,
-      baseValue: SURVIVAL_BONUS_POINTS,
-      multiplier: 1,
-      pointUnits: SURVIVAL_BONUS_UNITS,
-      points: SURVIVAL_BONUS_POINTS
+      baseValue: SURVIVAL_BONUS_COEFFICIENT,
+      multiplier: Math.sqrt(rounds),
+      pointUnits,
+      points: pointUnits / 100
     });
-    state.stats.totalPointUnits += SURVIVAL_BONUS_UNITS;
+    state.stats.totalPointUnits += pointUnits;
     state.stats.totalPoints = state.stats.totalPointUnits / 100;
   }
 
@@ -1624,8 +1632,9 @@ class CurveClashGame {
       name.className = "player-name";
       name.textContent = player.name;
       const detail = document.createElement("small");
+      const rounds = player.survivalRounds ?? 0;
       const outcome = player.survivalBonus
-        ? `last alive +${formatPoints(SURVIVAL_BONUS_POINTS)}`
+        ? `last alive after ${rounds} round${rounds === 1 ? "" : "s"} +${formatPoints(survivalBonusPoints(rounds))}`
         : player.alive ? "survived" : "eliminated";
       detail.textContent = `${player.kills} kill${player.kills === 1 ? "" : "s"} · ${outcome}`;
       copy.append(name, detail);
@@ -1656,6 +1665,7 @@ class CurveClashGame {
         scoreUnits: player.scoreUnits,
         scoreHistory: player.scoreHistory.map((entry) => ({ ...entry })),
         survivalBonus: player.survivalBonus,
+        survivalRounds: player.survivalRounds,
         shieldCharges: player.shieldCharges,
         hasBeam: player.hasBeam
       })),

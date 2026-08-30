@@ -99,12 +99,24 @@ For a multi-kill, base values are sorted from smallest to largest and receive
 increasing multipliers. Three values `x < y < z` therefore award
 `x × 1 + y × 2 + z × 3`.
 
-Whoever is still standing when the match ends—player or bot—collects a flat
-**+1000 point survival bonus**. It is paid once, only when exactly one player
-is left, so a round that ends with everyone eliminated pays nobody.
+Whoever is still standing when the match ends—player or bot—collects a
+survival bonus of **1000 × √R**, where `R` is the number of rounds the match
+lasted. It is paid once, only when exactly one player is left, so a round that
+ends with everyone eliminated pays nobody.
+
+| Rounds | 1 | 2 | 3 | 4 | 6 | 8 | 12 | 16 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Bonus | 1000 | 1414 | 1732 | 2000 | 2449 | 2828 | 3464 | 4000 |
+
+The square root, rather than a linear payout, keeps the bonus in the same
+league as a handful of kills however long the match runs—a linear bonus would
+reach 10 000 by round ten and make shooting beside the point. It also prices
+out stalling: one more round is worth `500 / √R`, so from the second round
+onward, waiting is worth less than landing a kill. That matters most against
+peaceful bots, where the match only ends when the human shoots.
 
 The live roster is ordered by score, and the final winner is the top-ranked
-player—even if that player was eliminated, since 1000 points is large but not
+player—even if that player was eliminated, since the bonus is large but not
 unbeatable. Ties are resolved by kills, survival, then the fixed turn order.
 
 ## Terrain-aware bots
