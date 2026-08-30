@@ -147,7 +147,10 @@ textarea {
 button,
 select,
 input[type="checkbox"],
-input[type="radio"],
+input[type="radio"] {
+  cursor: pointer;
+}
+
 button:disabled,
 input:disabled,
 select:disabled {
