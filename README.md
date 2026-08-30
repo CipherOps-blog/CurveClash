@@ -97,9 +97,15 @@ the authoritative pixel grid before the current shot creates any craters.
 
 For a multi-kill, base values are sorted from smallest to largest and receive
 increasing multipliers. Three values `x < y < z` therefore award
-`x × 1 + y × 2 + z × 3`. The live roster is ordered by score, and the final
-winner is the top-ranked player—even if that player was eliminated. Ties are
-resolved by kills, survival, then the fixed turn order.
+`x × 1 + y × 2 + z × 3`.
+
+Whoever is still standing when the match ends—player or bot—collects a flat
+**+1000 point survival bonus**. It is paid once, only when exactly one player
+is left, so a round that ends with everyone eliminated pays nobody.
+
+The live roster is ordered by score, and the final winner is the top-ranked
+player—even if that player was eliminated, since 1000 points is large but not
+unbeatable. Ties are resolved by kills, survival, then the fixed turn order.
 
 ## Terrain-aware bots
 

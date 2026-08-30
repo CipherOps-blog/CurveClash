@@ -4,10 +4,24 @@
  * A kill is worth the straight-line distance between both players, with every
  * part of that segment lying inside terrain counted a second time. For a
  * multi-kill, increasingly valuable kills receive increasingly large integer
- * multipliers after sorting by their base value.
+ * multipliers after sorting by their base value. Whoever is left standing at
+ * the end collects a flat survival bonus on top.
  */
 
 const EPSILON = 1e-9;
+
+/** Flat bonus paid to the sole survivor of a match, in points and in units. */
+export const SURVIVAL_BONUS_POINTS = 1000;
+export const SURVIVAL_BONUS_UNITS = SURVIVAL_BONUS_POINTS * 100;
+
+/**
+ * The one player still alive, or null when the match ended with nobody — or
+ * more than one — standing, in which case the survival bonus goes unpaid.
+ */
+export function findLastSurvivor(players = []) {
+  const survivors = players.filter((player) => player?.alive);
+  return survivors.length === 1 ? survivors[0] : null;
+}
 
 export function measureKillValue(shooter, target, terrain = null) {
   const origin = resolvePoint(shooter, "shooter");

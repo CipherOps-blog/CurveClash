@@ -15,7 +15,13 @@ import {
   placeBuriedPowerUps,
   updatePowerUpExposure
 } from "./src/powerups.js";
-import { rankPlayers, scoreMultiKill } from "./src/scoring.js";
+import {
+  SURVIVAL_BONUS_POINTS,
+  SURVIVAL_BONUS_UNITS,
+  findLastSurvivor,
+  rankPlayers,
+  scoreMultiKill
+} from "./src/scoring.js";
 
 const MAP_SIZES = {
   small: { width: 900, height: 560 },
@@ -475,6 +481,7 @@ class CurveClashGame {
         score: 0,
         scoreUnits: 0,
         scoreHistory: [],
+        survivalBonus: false,
         shieldCharges: 0,
         hasBeam: false
       });
@@ -1516,6 +1523,35 @@ class CurveClashGame {
     if (this.isCurrent(version)) this.beginInputPhase(version);
   }
 
+  /**
+   * The last player standing pockets a flat bonus, so outliving the field is
+   * worth as much as a long shot. The flag makes it a one-time payment: a
+   * replay ends by calling finishGame a second time, and the final snapshot it
+   * restores already carries both the bonus and the flag.
+   */
+  awardSurvivalBonus() {
+    const state = this.state;
+    const survivor = findLastSurvivor(state?.players ?? []);
+    if (!survivor || survivor.survivalBonus) return;
+    survivor.survivalBonus = true;
+    survivor.scoreUnits += SURVIVAL_BONUS_UNITS;
+    survivor.score = survivor.scoreUnits / 100;
+    survivor.scoreHistory.push({
+      turn: state.turn,
+      survival: true,
+      targetId: null,
+      targetName: null,
+      straightDistance: 0,
+      obstacleDistance: 0,
+      baseValue: SURVIVAL_BONUS_POINTS,
+      multiplier: 1,
+      pointUnits: SURVIVAL_BONUS_UNITS,
+      points: SURVIVAL_BONUS_POINTS
+    });
+    state.stats.totalPointUnits += SURVIVAL_BONUS_UNITS;
+    state.stats.totalPoints = state.stats.totalPointUnits / 100;
+  }
+
   finishGame() {
     const state = this.state;
     if (!state) return;
@@ -1523,6 +1559,7 @@ class CurveClashGame {
     state.currentShooterId = null;
     clearInterval(this.timerInterval);
     this.dom.timer.textContent = "—";
+    this.awardSurvivalBonus();
     if (!state.replay.playing && !state.replay.finalSnapshot) {
       state.replay.finalSnapshot = this.captureReplaySnapshot();
     }
@@ -1587,7 +1624,10 @@ class CurveClashGame {
       name.className = "player-name";
       name.textContent = player.name;
       const detail = document.createElement("small");
-      detail.textContent = `${player.kills} kill${player.kills === 1 ? "" : "s"} · ${player.alive ? "survived" : "eliminated"}`;
+      const outcome = player.survivalBonus
+        ? `last alive +${formatPoints(SURVIVAL_BONUS_POINTS)}`
+        : player.alive ? "survived" : "eliminated";
+      detail.textContent = `${player.kills} kill${player.kills === 1 ? "" : "s"} · ${outcome}`;
       copy.append(name, detail);
       const points = document.createElement("strong");
       points.className = "end-rank-score";
@@ -1615,6 +1655,7 @@ class CurveClashGame {
         score: player.score,
         scoreUnits: player.scoreUnits,
         scoreHistory: player.scoreHistory.map((entry) => ({ ...entry })),
+        survivalBonus: player.survivalBonus,
         shieldCharges: player.shieldCharges,
         hasBeam: player.hasBeam
       })),
